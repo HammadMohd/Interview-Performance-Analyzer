@@ -1,0 +1,12 @@
+# Virtual environment
+.venv/
+
+# Generated files
+*.wav
+*.csv
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Large model files
+*.task
