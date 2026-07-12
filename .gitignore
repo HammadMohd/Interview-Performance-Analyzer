@@ -1,0 +1,24 @@
+# Virtual Environment
+venv/
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# VS Code
+.vscode/
+
+# Environment Variables
+.env
+
+# Logs
+*.log
+
+# Generated Outputs
+outputs/
+temp/
+cache/
