@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from datasets import load_dataset, Video
 from huggingface_hub import login
+import concurrent.futures
+import threading
 
 # Make sure to install dependencies:
 # pip install huggingface_hub datasets opencv-python mediapipe pandas numpy
@@ -12,14 +14,22 @@ from huggingface_hub import login
 from mediapipe.tasks import python
 from mediapipe.tasks.python import vision
 
-# Initialize MediaPipe Pose Landmarker
-base_options = python.BaseOptions(model_asset_path='pose_landmarker_heavy.task')
-options = vision.PoseLandmarkerOptions(
-    base_options=base_options,
-    running_mode=vision.RunningMode.IMAGE,
-    min_pose_detection_confidence=0.5,
-    min_pose_presence_confidence=0.5)
-pose = vision.PoseLandmarker.create_from_options(options)
+# Use thread-local storage so each thread gets its own MediaPipe GPU instance
+thread_local = threading.local()
+
+def get_pose():
+    if not hasattr(thread_local, "pose"):
+        base_options = python.BaseOptions(
+            model_asset_path='pose_landmarker_full.task'
+            # Using CPU delegate (default) for thread safety across 8 cores
+        )
+        options = vision.PoseLandmarkerOptions(
+            base_options=base_options,
+            running_mode=vision.RunningMode.IMAGE,
+            min_pose_detection_confidence=0.5,
+            min_pose_presence_confidence=0.5)
+        thread_local.pose = vision.PoseLandmarker.create_from_options(options)
+    return thread_local.pose
 
 class PoseLandmark:
     NOSE = 0
@@ -69,15 +79,27 @@ def process_video(video_path):
     prev_left_wrist = None
     prev_right_wrist = None
     
+    frame_count = 0
     while cap.isOpened():
-        ret, frame = cap.read()
+        # grab() reads the frame without fully decoding it (much faster for skipping)
+        ret = cap.grab()
         if not ret:
             break
             
-        # Convert the BGR image to RGB
+        frame_count += 1
+        if frame_count % 3 != 0:
+            continue
+            
+        # retrieve() decodes the frame only when we actually need it
+        ret, frame = cap.retrieve()
+        if not ret:
+            break
+            
+        # Convert the BGR image to RGB (Standard format for CPU delegate)
         image = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         
         # Process the image and find poses
+        pose = get_pose()
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=image)
         results = pose.detect(mp_image)
         
@@ -172,10 +194,10 @@ def process_video(video_path):
 
 def main():
     # 1. Authenticate with HuggingFace
-    hf_token = os.environ.get("HF_TOKEN")
+    hf_token = ""
     if not hf_token:
         print("Error: HF_TOKEN environment variable not set.")
-        print("Please set it using: export HF_TOKEN='your_hf_token'")
+        print("Please set it using: hf_token='your_hf_token'")
         return
         
     print("Logging into Hugging Face...")
@@ -203,12 +225,8 @@ def main():
     print(f"Total videos to process: {len(dataset)}")
     
     # 3. Process each video
-    # We will just process the first 5 for a dry run, adjust this as needed!
+    items_to_process = []
     for i, item in enumerate(dataset):
-        # Adjust 'video_id' and 'video_path' based on actual dataset columns
-        # Often HF datasets return video objects with 'path'
-        
-        # This is a placeholder column mapping, update it based on dataset structure!
         vid_id = item.get('id', f"video_{i}") 
         
         video_data = item.get('video', None)
@@ -219,20 +237,30 @@ def main():
         else:
              print(f"Skipping index {i}: Could not find video path.")
              continue
-            
-        print(f"Processing ID: {vid_id} | Path: {video_path}")
-        metrics = process_video(video_path)
+             
+        items_to_process.append((vid_id, video_path))
         
+            
+    print(f"Prepared {len(items_to_process)} videos for multithreaded processing...")
+    
+    def process_item(item):
+        vid_id, video_path = item
+        print(f"Starting ID: {vid_id}")
+        metrics = process_video(video_path)
         if metrics:
             metrics['id'] = vid_id
-            all_features.append(metrics)
+            print(f"Finished ID: {vid_id}")
+            return metrics
         else:
             print(f"Warning: No posture detected for ID: {vid_id}")
-            
-        # Remove the break statement to process the full dataset
-        if i >= 4: 
-            print("Stopping after 5 videos for dry-run testing. Remove the break statement in main() to process all.")
-            break
+            return None
+
+    # Process videos concurrently using a ThreadPool (8 threads for M1 8-core)
+    with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        results = executor.map(process_item, items_to_process)
+        for res in results:
+            if res:
+                all_features.append(res)
             
     # 4. Save to CSV
     if all_features:
