@@ -1,0 +1,27 @@
+# Core
+numpy
+pandas
+
+# Audio Processing
+librosa
+soundfile
+ffmpeg-python
+
+# Speech Recognition
+openai-whisper
+
+# Hugging Face
+datasets
+huggingface_hub
+
+# Deep Learning
+torch
+torchvision
+torchaudio
+
+# Video Processing
+opencv-python
+
+# Jupyter Support
+jupyter
+ipykernel
