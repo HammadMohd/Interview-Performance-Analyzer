@@ -1,15 +1,15 @@
 # Virtual Environment
 venv/
 
-# Python
+# Python Cache
 __pycache__/
 *.py[cod]
 *.pyo
 
-# Jupyter
+# Jupyter Notebook
 .ipynb_checkpoints/
 
-# VS Code
+# VS Code Settings
 .vscode/
 
 # Environment Variables
@@ -18,7 +18,20 @@ __pycache__/
 # Logs
 *.log
 
-# Generated Outputs
-outputs/
-temp/
-cache/
+# Operating System Files
+.DS_Store
+Thumbs.db
+
+# Dataset files (keep folders, ignore large data)
+data/raw/*
+data/processed/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+
+# Generated outputs (keep folder structure)
+data/outputs/*
+!data/outputs/.gitkeep
+
+# Model files (usually large)
+models/*
+!models/.gitkeep
