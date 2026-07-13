@@ -3,7 +3,6 @@
 
 # Generated files
 *.wav
-*.csv
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
