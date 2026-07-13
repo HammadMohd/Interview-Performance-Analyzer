@@ -35,3 +35,15 @@ data/outputs/*
 # Model files (usually large)
 models/*
 !models/.gitkeep
+# Virtual environment
+.venv/
+
+# Generated files
+*.wav
+*.csv
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
+
+# Large model files
+*.task
