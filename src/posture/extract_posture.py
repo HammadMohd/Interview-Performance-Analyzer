@@ -241,8 +241,8 @@ def main():
         elif isinstance(video_data, str):
             video_path = video_data
         else:
-             print(f"Skipping index {i}: Could not find video path.")
-             continue
+            print(f"Skipping index {i}: Could not find video path.")
+            continue
              
         items_to_process.append((vid_id, video_path))
         
