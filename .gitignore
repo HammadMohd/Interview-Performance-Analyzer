@@ -6,9 +6,6 @@ __pycache__/
 *.py[cod]
 *.pyo
 
-# Jupyter Notebook
-.ipynb_checkpoints/
-
 # VS Code Settings
 .vscode/
 
