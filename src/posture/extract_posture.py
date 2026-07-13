@@ -194,12 +194,12 @@ def process_video(video_path):
 
 def main():
     # 1. Authenticate with HuggingFace
-    hf_token = ""
+    hf_token = os.environ.get("HF_TOKEN")
     if not hf_token:
         print("Error: HF_TOKEN environment variable not set.")
-        print("Please set it using: hf_token='your_hf_token'")
+        print("Please set it, e.g.: export HF_TOKEN='your_hf_token'")
         return
-        
+
     print("Logging into Hugging Face...")
     login(token=hf_token)
     
