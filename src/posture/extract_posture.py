@@ -19,8 +19,14 @@ thread_local = threading.local()
 
 def get_pose():
     if not hasattr(thread_local, "pose"):
+        model_path = os.path.join(os.path.dirname(__file__), "pose_landmarker_full.task")
+        if not os.path.exists(model_path):
+            raise FileNotFoundError(
+                f"Missing MediaPipe model asset: {model_path}. Download it and place it next to extract_posture.py."
+            )
+
         base_options = python.BaseOptions(
-            model_asset_path='pose_landmarker_full.task'
+            model_asset_path=model_path
             # Using CPU delegate (default) for thread safety across 8 cores
         )
         options = vision.PoseLandmarkerOptions(
