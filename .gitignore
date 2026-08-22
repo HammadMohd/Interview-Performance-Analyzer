@@ -38,6 +38,9 @@ models/*
 # Generated files
 *.wav
 
+# Notebook output data
+notebooks/*/data/
+
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
