@@ -1,0 +1,317 @@
+================================================================================
+                    INTERVIEW PERFORMANCE ANALYZER
+                       FEATURE DESCRIPTIONS
+================================================================================
+
+This document describes all features used in the Interview Performance Analyzer
+project across two main datasets: merged_features.csv and target_features.csv.
+
+================================================================================
+SECTION 1: METADATA & IDENTITY FEATURES
+================================================================================
+
+id                  - Unique numeric identifier for each interview segment
+file_name           - Video file name (e.g., vid_0001.mp4)
+duration_label      - Categorical label for video length: "short", "medium", or "long"
+question_id         - Numeric ID of the interview question being answered
+question            - Text of the interview question (e.g., "Introduce yourself")
+user_no             - Numeric identifier for the interviewee
+
+================================================================================
+SECTION 2: PERSONALITY TRAITS (Big Five / OCEAN Model)
+================================================================================
+
+These are standardized Z-scores (mean=0, std=1) representing personality
+dimensions based on the Big Five personality model.
+
+openness            - Openness to experience. High = curious, creative, adventurous.
+                      Low = practical, conventional, prefers routine.
+
+conscientiousness   - Conscientiousness. High = organized, dependable, disciplined.
+                      Low = flexible, spontaneous, careless.
+
+extraversion        - Extraversion. High = outgoing, energetic, talkative.
+                      Low = introverted, reserved, solitary.
+
+agreeableness       - Agreeableness. High = cooperative, trusting, empathetic.
+                      Low = competitive, skeptical, challenging.
+
+neuroticism         - Neuroticism (Emotional Stability). High = anxious, moody,
+                      emotionally reactive. Low = calm, resilient, stable.
+
+overall_personality - Aggregate personality score combining all five traits.
+
+================================================================================
+SECTION 3: INTERVIEW SCORING (Target Variables)
+================================================================================
+
+These are the target labels used for predicting interview performance.
+Scores are standardized Z-scores.
+
+interview_score     - Overall interview performance score (primary target).
+
+--- Additional targets in target_features.csv only ---
+
+answer_score        - Quality/relevance score of the verbal answer given.
+speaking_skills     - Score for fluency, articulation, and speech clarity.
+confidence_score    - Score reflecting perceived confidence during delivery.
+facial_expression   - Score for appropriateness and expressiveness of facial cues.
+overall_performance - Comprehensive score combining all performance dimensions.
+
+================================================================================
+SECTION 4: AUDIO / SPEECH FEATURES
+================================================================================
+
+Duration_Sec        - Total duration of the speech segment in seconds.
+Silence_Duration_Sec- Total duration of silence/pauses within the speech.
+Speech_Rate_WPM     - Speaking rate in Words Per Minute (WPM).
+                      Normal conversation: 120-150 WPM.
+Mean_Pitch_Hz       - Average fundamental frequency (F0) of the voice in Hz.
+                      Higher pitch may indicate nervousness or excitement.
+Mean_Energy         - Average energy/amplitude of the audio signal.
+                      Higher energy suggests louder, more assertive speech.
+Mean_ZCR            - Mean Zero Crossing Rate. Measures how often the signal
+                      crosses zero. Related to noisiness and speech characteristics.
+
+================================================================================
+SECTION 5: MFCC FEATURES (Mel-Frequency Cepstral Coefficients)
+================================================================================
+
+MFCC features capture the spectral envelope of the audio signal, representing
+the shape of the vocal tract. They are widely used in speech recognition
+and emotion detection.
+
+MFCC_1 through MFCC_13 - 13 cepstral coefficients capturing spectral features.
+  MFCC_1               - Typically captures overall spectral energy/loudness.
+  MFCC_2-4             - Capture broad spectral shape and voice characteristics.
+  MFCC_5-8             - Capture mid-frequency details and formant structure.
+  MFCC_9-13            - Capture finer spectral details and noise characteristics.
+
+================================================================================
+SECTION 6: TRANSCRIPT FEATURES
+================================================================================
+
+transcript          - Full text transcript of the speech with timestamps.
+                      Format: [MM:SS - MM:SS] spoken text.
+                      Used for NLP analysis, sentiment, and content evaluation.
+
+================================================================================
+SECTION 7: FACE DETECTION FEATURES
+================================================================================
+
+face_detected_ratio - Proportion of video frames where a face was detected.
+                      Range: 0.0 to 1.0. Higher = more consistent face visibility.
+
+================================================================================
+SECTION 8: GAZE / EYE TRACKING FEATURES
+================================================================================
+
+These features track where the candidate is looking, which indicates
+confidence, engagement, and honesty.
+
+gaze_ratio_mean     - Average horizontal gaze position (0 = left, 0.5 = center,
+                      1 = right). Value near 0.5 suggests direct eye contact
+                      with camera/interviewer.
+
+gaze_deviation_mean - Average deviation of gaze from center.
+                      Lower = more steady eye contact.
+                      Higher = looking around frequently.
+
+gaze_stability_std  - Standard deviation of gaze position over time.
+                      Lower = more stable, focused gaze.
+                      Higher = erratic eye movement (possible nervousness).
+
+================================================================================
+SECTION 9: FACIAL EXPRESSION - MOUTH FEATURES
+================================================================================
+
+These capture mouth-related expressions using facial landmark detection.
+
+smile_score_mean    - Average smile intensity score (0 to 1).
+                      Higher = more smiling, suggesting warmth and friendliness.
+
+smile_score_std     - Standard deviation of smile intensity.
+                      Higher = more variation in smiling (natural expressions).
+
+frown_score_mean    - Average frown intensity score.
+                      Higher = more frowning, suggesting discomfort or confusion.
+
+frown_score_std     - Standard deviation of frown intensity.
+                      Higher = more variation in frowning.
+
+================================================================================
+SECTION 10: FACIAL EXPRESSION - EYE & BROW FEATURES
+================================================================================
+
+eye_openness_mean   - Average eye openness ratio.
+                      Higher = eyes more open (alert, attentive).
+                      Lower = eyes more closed (drowsy, disengaged).
+
+eye_openness_std    - Standard deviation of eye openness.
+                      Higher = more blinking or expression variation.
+
+jaw_open_mean       - Average jaw opening distance.
+                      Higher = mouth opens wider (speaking actively).
+                      Lower = jaw mostly closed.
+
+jaw_open_std        - Standard deviation of jaw opening.
+                      Higher = more dynamic mouth movement while speaking.
+
+brow_raise_mean     - Average eyebrow raise intensity.
+                      Higher = raised eyebrows (surprise, emphasis, engagement).
+
+brow_raise_std      - Standard deviation of eyebrow raise.
+                      Higher = more expressive eyebrow movement.
+
+mouth_frown_mean    - Average mouth frown intensity (downward lip corners).
+                      Higher = more downturned mouth (displeasure, nervousness).
+
+mouth_frown_std     - Standard deviation of mouth frown.
+                      Higher = more variation in mouth frown expression.
+
+================================================================================
+SECTION 11: EMOTION DETECTION FEATURES
+================================================================================
+
+These are average probabilities (0 to 1) from an emotion recognition model
+applied to facial expressions across all detected frames.
+
+emotion_happy_mean  - Probability of happiness expression.
+emotion_sad_mean    - Probability of sadness expression.
+emotion_angry_mean  - Probability of anger expression.
+emotion_surprise_mean - Probability of surprise expression.
+emotion_fear_mean   - Probability of fear/anxiety expression.
+emotion_disgust_mean - Probability of disgust expression.
+emotion_neutral_mean - Probability of neutral/calm expression.
+
+Higher values indicate the model detected more of that emotion.
+
+================================================================================
+SECTION 12: HEAD & UPPER BODY POSTURE FEATURES
+================================================================================
+
+These features measure body language, posture, and upper body movement
+using pose estimation (e.g., MediaPipe or OpenPose).
+
+head_centering_score_mean - How centered the head is in the video frame.
+                      Higher = head more centered (confident, engaged).
+                      Lower = head off-center (leaning, distracted).
+
+absolute_shoulder_slope_mean - Average absolute tilt of the shoulders.
+                      Lower = shoulders more level (calm, confident).
+                      Higher = shoulders more tilted (tense, asymmetric posture).
+
+shoulder_slope_var   - Variance in shoulder tilt over time.
+                      Lower = more stable posture.
+                      Higher = more body movement/fidgeting.
+
+shoulder_width_mean  - Average apparent shoulder width in the frame.
+                      May relate to posture openness (wider = more open).
+
+shoulder_width_var   - Variance in shoulder width.
+                      Higher = more body rotation or shifting.
+
+nose_shoulder_dist_mean - Average distance between nose and shoulder landmarks.
+                      May indicate head tilt or posture.
+
+nose_shoulder_dist_var - Variance in nose-shoulder distance.
+                      Higher = more head movement relative to shoulders.
+
+================================================================================
+SECTION 13: HAND & ARM GESTURE FEATURES
+================================================================================
+
+hand_speed_mean     - Average speed of hand movements (pixels/frame).
+                      Higher = more animated hand gestures.
+                      Lower = hands mostly still.
+
+hand_to_face_touches - Count of times hands touched the face during the video.
+                      Higher = more face touching (possible nervousness or habit).
+
+crossed_arms_score  - Score indicating how often arms were crossed.
+                      Higher = more crossed arms (defensive or closed posture).
+
+================================================================================
+SECTION 14: CORE BODY MOVEMENT FEATURES
+================================================================================
+
+core_speed_mean     - Average speed of torso/core body movement.
+                      Higher = more body movement (restlessness or energy).
+                      Lower = more still and composed.
+
+posture_shift_count - Number of significant posture changes/shifts.
+                      Higher = more shifting (discomfort or restlessness).
+                      Lower = more stable, composed posture.
+
+================================================================================
+SECTION 15: BEHAVIORAL SCORE FEATURES
+================================================================================
+
+engagement_score    - Composite score measuring overall engagement level.
+                      Combines gaze, facial expression, and body language cues.
+                      Higher = more engaged and attentive.
+
+agitation_score     - Composite score measuring nervousness or agitation.
+                      Combines fidgeting, gaze instability, and facial cues.
+                      Higher = more agitated or nervous.
+
+================================================================================
+SECTION 16: FEATURE SUMMARY TABLE
+================================================================================
+
+CATEGORY                    COUNT   FEATURES
+--------------------------  -----   ----------------------------------------
+Metadata & Identity          6      id, file_name, duration_label, question_id,
+                                    question, user_no
+Personality Traits           6      openness, conscientiousness, extraversion,
+                                    agreeableness, neuroticism, overall_personality
+Interview Scoring            1      interview_score (target in merged_features)
+Audio Features               6      Duration_Sec, Speech_Rate_WPM,
+                                    Silence_Duration_Sec, Mean_Pitch_Hz,
+                                    Mean_Energy, Mean_ZCR
+MFCC Features               13      MFCC_1 through MFCC_13
+Transcript                   1      transcript
+Face Detection               1      face_detected_ratio
+Gaze Features                3      gaze_ratio_mean, gaze_deviation_mean,
+                                    gaze_stability_std
+Mouth Features               6      smile_score_mean/std, frown_score_mean/std
+Eye & Brow Features          6      eye_openness_mean/std, jaw_open_mean/std,
+                                    brow_raise_mean/std, mouth_frown_mean/std
+Emotion Features             7      emotion_happy/sad/angry/surprise/fear/
+                                    disgust/neutral_mean
+Head & Shoulder Posture      6      head_centering_score_mean,
+                                    absolute_shoulder_slope_mean,
+                                    shoulder_slope_var, shoulder_width_mean/var,
+                                    nose_shoulder_dist_mean/var
+Hand & Arm Gestures          3      hand_speed_mean, hand_to_face_touches,
+                                    crossed_arms_score
+Core Body Movement           2      core_speed_mean, posture_shift_count
+Behavioral Scores            2      engagement_score, agitation_score
+--------------------------  -----   ----------------------------------------
+TOTAL (merged_features)     ~68
+Additional Targets           5      answer_score, speaking_skills,
+                                    confidence_score, facial_expression,
+                                    overall_performance
+--------------------------  -----   ----------------------------------------
+
+================================================================================
+SECTION 17: DATA NOTES
+================================================================================
+
+1. All personality and scoring features are standardized Z-scores centered
+   around 0 with unit variance. Negative values are below average, positive
+   values are above average.
+
+2. Audio features (MFCC, pitch, energy, ZCR) are extracted per-segment.
+   Face and posture features are averaged across all detected frames.
+
+3. Some rows may have missing values in certain features (e.g., no transcript
+   if speech was not detected, or face_detected_ratio < 1 if face was lost).
+
+4. The target_features.csv contains additional scoring dimensions not present
+   in merged_features.csv, suggesting these may come from manual annotation
+   or a different scoring pipeline.
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
