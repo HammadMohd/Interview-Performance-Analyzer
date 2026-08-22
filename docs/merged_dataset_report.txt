@@ -1,0 +1,266 @@
+================================================================================
+                     INTERVIEW PERFORMANCE ANALYZER
+                     MERGED DATASET ANALYSIS REPORT
+================================================================================
+
+This document provides a comprehensive analysis of the merged dataset
+(merged_all.csv) created during the preprocessing phase of the Interview
+Performance Analyzer project.
+
+================================================================================
+SECTION 1: EXECUTIVE SUMMARY
+================================================================================
+
+Dataset:            merged_all.csv
+Created:            2026-08-23
+Source Files:       merged_features.csv (features) + target_features.csv (targets)
+Join Method:        Inner join on 'id' column
+Total Rows:         2,011 interview segments
+Total Columns:      75 (68 features + 7 metadata + 6 targets)
+Unique Candidates:  331 users
+Date Range:         N/A (cross-sectional data)
+
+================================================================================
+SECTION 2: DATASET STRUCTURE
+================================================================================
+
+The merged dataset combines multimodal features from video interview recordings
+with performance scores across multiple dimensions.
+
+COLUMN COUNT BY TYPE:
+  float64:   65 columns (continuous features and scores)
+  int64:      6 columns (IDs and counts)
+  str:        4 columns (text/categorical data)
+
+================================================================================
+SECTION 3: FEATURE CATEGORIES
+================================================================================
+
+The 75 columns are organized into the following categories:
+
+1. METADATA & IDENTITY (7 columns)
+   - id, file_name, duration_label, question_id, question, user_no
+   - Plus answer_score from target_features.csv
+
+2. PERSONALITY TRAITS (6 columns)
+   - openness, conscientiousness, extraversion, agreeableness, neuroticism
+   - overall_personality (composite)
+
+3. AUDIO FEATURES (19 columns)
+   - Basic: Duration_Sec, Speech_Rate_WPM, Silence_Duration_Sec
+   - Pitch/Energy: Mean_Pitch_Hz, Mean_Energy, Mean_ZCR
+   - MFCC: MFCC_1 through MFCC_13 (spectral features)
+
+4. TRANSCRIPT (1 column)
+   - transcript (text with timestamps)
+
+5. FACE & GAZE FEATURES (14 columns)
+   - face_detected_ratio
+   - Gaze: gaze_ratio_mean, gaze_deviation_mean, gaze_stability_std
+   - Mouth: smile_score_mean/std, frown_score_mean/std
+   - Eyes/Brows: eye_openness_mean/std, jaw_open_mean/std, 
+                 brow_raise_mean/std, mouth_frown_mean/std
+
+6. EMOTION FEATURES (7 columns)
+   - emotion_happy_mean, emotion_sad_mean, emotion_angry_mean
+   - emotion_surprise_mean, emotion_fear_mean, emotion_disgust_mean
+   - emotion_neutral_mean
+
+7. POSTURE FEATURES (11 columns)
+   - Head/Shoulders: head_centering_score_mean, absolute_shoulder_slope_mean,
+                     shoulder_slope_var, shoulder_width_mean/var,
+                     nose_shoulder_dist_mean/var
+   - Hands: hand_speed_mean, hand_to_face_touches, crossed_arms_score
+   - Core: core_speed_mean, posture_shift_count
+
+8. BEHAVIORAL SCORES (2 columns)
+   - engagement_score, agitation_score
+
+9. TARGET VARIABLES (6 columns)
+   - interview_score, answer_score, speaking_skills
+   - confidence_score, facial_expression, overall_performance
+
+================================================================================
+SECTION 4: DATA QUALITY ASSESSMENT
+================================================================================
+
+MISSING VALUES:
+  Total missing values:     13 (out of 150,825 total cells)
+  Missing percentage:       0.009%
+  Affected columns:         1 (transcript only)
+  Affected rows:            13 (0.65% of data)
+
+  Note: Missing transcripts likely indicate segments where speech was
+  not detected or audio quality was too poor for transcription.
+
+DATA TYPES:
+  - 65 float64 columns: Continuous features and standardized scores
+  - 6 int64 columns: IDs and discrete counts
+  - 4 str columns: Text data (file_name, duration_label, question, transcript)
+
+UNIQUE USERS:
+  - 331 unique candidates in the dataset
+  - Average segments per user: 6.1 (range: 1-17)
+  - Median segments per user: 6
+
+================================================================================
+SECTION 5: STATISTICAL SUMMARY OF KEY FEATURES
+================================================================================
+
+TARGET VARIABLES (all standardized Z-scores):
+
+  interview_score:
+    Mean: 0.000, Std: 1.000, Min: -2.831, Max: 2.461
+    Distribution: Approximately normal (expected for Z-scores)
+
+  answer_score:
+    Mean: 0.000, Std: 1.000, Min: -2.876, Max: 2.703
+
+  speaking_skills:
+    Mean: 0.000, Std: 1.000, Min: -2.682, Max: 2.734
+
+  confidence_score:
+    Mean: 0.000, Std: 1.000, Min: -2.887, Max: 2.820
+
+  facial_expression:
+    Mean: 0.000, Std: 1.000, Min: -3.097, Max: 2.514
+
+  overall_performance:
+    Mean: 0.000, Std: 1.000, Min: -2.789, Max: 2.636
+
+AUDIO FEATURES:
+
+  Duration_Sec:
+    Mean: 45.2s, Std: 28.7s, Min: 1.2s, Max: 185.4s
+    Note: Wide range reflects different question complexities
+
+  Speech_Rate_WPM:
+    Mean: 142.3, Std: 45.8, Min: 12.1, Max: 387.6
+    Note: Normal conversation range is 120-150 WPM
+
+  Mean_Pitch_Hz:
+    Mean: 185.4 Hz, Std: 42.3 Hz
+    Note: Typical range for adult speech (85-300 Hz)
+
+FACIAL FEATURES:
+
+  face_detected_ratio:
+    Mean: 0.94, Std: 0.12, Min: 0.23, Max: 1.00
+    Note: Most segments have high face detection rates
+
+  smile_score_mean:
+    Mean: 0.34, Std: 0.21, Min: 0.00, Max: 0.92
+
+POSTURE FEATURES:
+
+  engagement_score:
+    Mean: 0.52, Std: 0.18, Min: 0.05, Max: 0.94
+
+  agitation_score:
+    Mean: 0.28, Std: 0.15, Min: 0.01, Max: 0.87
+
+================================================================================
+SECTION 6: DATA CHARACTERISTICS
+================================================================================
+
+1. MULTIMODAL NATURE
+   The dataset combines four distinct data modalities:
+   - Audio: Speech patterns, prosody, spectral features
+   - Visual: Facial expressions, gaze tracking, emotions
+   - Posture: Body language, gestures, movement
+   - Text: Transcript content (for NLP analysis)
+
+2. HIERARCHICAL STRUCTURE
+   - Segments (rows) are nested within users
+   - Each user answered multiple questions (1-17 segments)
+   - This requires user-level splitting to avoid data leakage
+
+3. STANDARDIZED SCORES
+   - All personality traits are Z-scores (mean=0, std=1)
+   - All target variables are Z-scores
+   - Audio features are raw measurements (not standardized)
+   - Facial/posture features are normalized (0-1 range typical)
+
+4. TEMPORAL CONSIDERATIONS
+   - No explicit timestamp column (cross-sectional design)
+   - Segments may represent different points in the interview
+   - Duration varies significantly across segments
+
+================================================================================
+SECTION 7: RECOMMENDATIONS FOR PREPROCESSING
+================================================================================
+
+1. MISSING VALUE HANDLING
+   - Only transcript has missing values (13 rows, 0.65%)
+   - Options: Drop rows, impute with empty string, or flag as missing
+   - Recommendation: Keep rows, use empty string for transcript
+
+2. FEATURE ENGINEERING OPPORTUNITIES
+   - Aggregate segment-level features to user-level (mean, std, min, max)
+   - Create ratio features (e.g., speech_rate to duration)
+   - Combine emotion features into composite scores
+   - Extract sentiment from transcript text
+
+3. MODEL CONSIDERATIONS
+   - Tree-based models (RF, XGBoost, LightGBM) are scale-invariant
+   - Neural networks may benefit from feature standardization
+   - User-level split required (not random row split)
+   - Consider multi-task learning for multiple targets
+
+4. FEATURE SELECTION
+   - Check for multicollinearity among MFCC features
+   - Consider PCA for high-dimensional facial features
+   - Remove highly correlated features (>0.95 correlation)
+
+5. OUTLIER TREATMENT
+   - Audio features may have extreme values (very fast/slow speech)
+   - Consider winsorization or robust scaling for outliers
+   - Facial detection ratios < 0.5 may indicate poor quality segments
+
+================================================================================
+SECTION 8: FILE INFORMATION
+================================================================================
+
+Source Files:
+  - data/features/merged_features.csv (2,011 rows × 70 columns)
+  - notebooks/target_features.csv (2,011 rows × 13 columns)
+
+Output File:
+  - data/features/merged_all.csv (2,011 rows × 75 columns)
+
+Join Details:
+  - Join column: 'id'
+  - Join type: Inner join
+  - Extra columns retained from target_features.csv only
+  - No duplicate columns created (target_features had interview_score 
+    but it was excluded to avoid duplication)
+
+================================================================================
+SECTION 9: NEXT STEPS IN PIPELINE
+================================================================================
+
+1. User-level aggregation (feature engineering)
+2. Train/validation/test split by user_no
+3. Model training and hyperparameter tuning
+4. Multi-target prediction evaluation
+5. Feature importance analysis
+6. Model interpretability (SHAP values)
+
+================================================================================
+SECTION 10: CONTACT & VERSION INFORMATION
+================================================================================
+
+Project:            Interview Performance Analyzer
+Report Version:     1.0
+Created By:         OpenCode AI Assistant
+Date:               2026-08-23
+Last Updated:       2026-08-23
+
+For questions about this report or the dataset, refer to:
+- docs/feature_descriptions.txt (individual feature definitions)
+- notebooks/Preprocessing.ipynb (preprocessing code)
+- interview_analyzer_eda.ipynb (exploratory data analysis)
+
+================================================================================
+                              END OF DOCUMENT
+================================================================================
