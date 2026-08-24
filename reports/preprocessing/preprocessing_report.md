@@ -1,7 +1,7 @@
-# Preprocessing Report — Multimodal Interview Performance Dataset
+# Preprocessing Report — Multimodal Interview Performance Dataset (v2)
 **Notebook:** `notebooks/Preprocessing/01_preprocessing.ipynb`
 **Dataset:** `data/features/merged_features.csv`
-**Date:** 2026-08-23
+**Date:** 2026-08-25
 
 ---
 
@@ -9,8 +9,8 @@
 
 | Metric | Value |
 |---|---|
-| Original Shape | 2,011 rows x 76 columns |
-| Cleaned Shape | 2,011 rows x 76 columns |
+| Original Shape | 2,011 rows x 88 columns |
+| Cleaned Shape | 2,011 rows x 88 columns |
 | Rows Removed | 0 |
 | Columns Removed | 0 |
 | Missing Values | 13 (transcript only, 0.65%) |
@@ -20,9 +20,11 @@
 | Avg Videos/Candidate | 6.1 |
 | Infinite Values | 0 |
 | Constant Columns | 0 |
+| New v2 Features | 14 audio features added |
 
 **Outcome:** Dataset is clean. No irreversible transformations were applied.
-All 2,011 rows and 76 columns are preserved in the output.
+All 2,011 rows and 88 columns are preserved in the output.
+v2 adds 14 new audio prosodic features (pause, pitch variation, spectral, filler words).
 
 ---
 
@@ -31,11 +33,11 @@ All 2,011 rows and 76 columns are preserved in the output.
 | Property | Value |
 |---|---|
 | Total Rows | 2,011 |
-| Total Columns | 76 |
-| float64 columns | 65 |
-| int64 columns | 6 |
-| str columns | 5 |
-| Memory Usage | 2.30 MB |
+| Total Columns | 88 |
+| float64 columns | 79 |
+| int64 columns | 5 |
+| str columns | 4 |
+| Memory Usage | ~3.3 MB |
 
 ### Column Index (first and last 5)
 
@@ -47,11 +49,11 @@ All 2,011 rows and 76 columns are preserved in the output.
 | 4 | question_id | int64 |
 | 5 | question | str |
 | ... | ... | ... |
-| 72 | core_speed_mean | float64 |
-| 73 | posture_shift_count | int64 |
-| 74 | engagement_score | float64 |
-| 75 | agitation_score | int64 |
-| 76 | transcript | str |
+| 84 | core_speed_mean | float64 |
+| 85 | posture_shift_count | int64 |
+| 86 | engagement_score | float64 |
+| 87 | agitation_score | int64 |
+| 88 | user_no | int64 |
 
 ---
 
@@ -64,9 +66,9 @@ constant detection, and near-zero variance detection.
 
 | Metric | Count |
 |---|---|
-| Total columns | 76 |
-| Numeric columns | 71 |
-| Categorical (object) columns | 0 (5 are str dtype) |
+| Total columns | 88 |
+| Numeric columns | 83 |
+| Categorical (object) columns | 4 |
 | Constant columns | 0 |
 | Near-zero variance columns | 0 |
 | Columns with missing values | 1 |
@@ -86,13 +88,14 @@ No infinite values found in any numeric column.
 
 ## 4. Column Grouping Validation
 
-All columns validated against the reference schema. No missing or unknown columns.
+All columns validated against the v2 reference schema. No missing or unknown columns.
 
 | Group | Expected | Present | Status |
 |---|---|---|---|
-| METADATA | 7 | 7 | All present |
+| METADATA | 5 | 5 | All present |
 | TARGETS | 12 | 12 | All present |
-| AUDIO | 6 | 6 | All present |
+| AUDIO (original) | 5 | 5 | All present |
+| AUDIO (new v2) | 14 | 14 | All present |
 | MFCC | 13 | 13 | All present |
 | FACE | 16 | 16 | All present |
 | EMOTION | 7 | 7 | All present |
@@ -102,14 +105,19 @@ All columns validated against the reference schema. No missing or unknown column
 
 ### Column Groups Detail
 
-**Metadata (7):** id, file_name, user_no, question_id, question, duration_label, video_quality
+**Metadata (5):** id, file_name, user_no, question_id, question
 
 **Targets (12):** openness, conscientiousness, extraversion, agreeableness, neuroticism,
 overall_personality, interview_score, answer_score, speaking_skills, confidence_score,
 facial_expression, overall_performance
 
-**Audio (6):** Duration_Sec, Speech_Rate_WPM, Silence_Duration_Sec, Mean_Pitch_Hz,
+**Audio - original (5):** Duration_Sec, Speech_Rate_WPM, Mean_Pitch_Hz,
 Mean_Energy, Mean_ZCR
+
+**Audio - new v2 (14):** Total_Words, Articulation_Rate_WPM, Total_Silence_Sec,
+Silence_Ratio, Pause_Count, Avg_Pause_Duration_Sec, Std_Pitch_Hz, Pitch_Range_Hz,
+Std_Energy, Spectral_Centroid, Spectral_Rolloff, Spectral_Contrast,
+Filler_Word_Count, Filler_Rate_Per_Min
 
 **MFCC (13):** MFCC_1 through MFCC_13
 
@@ -136,7 +144,7 @@ posture_shift_count, engagement_score, agitation_score
 
 Only one column has missing values: `transcript` (13 rows, 0.65%).
 
-- **Numeric features:** 0 missing values across all 62 feature columns
+- **Numeric features:** 0 missing values across all 76 feature columns
 - **Target columns:** 0 missing values across all 12 target columns
 - **Total missing:** 13 (all in transcript)
 
@@ -199,7 +207,7 @@ The majority of candidates answered 6-7 questions.
 
 ### Infinite Values
 
-No infinite values found in any of the 71 numeric columns.
+No infinite values found in any of the 83 numeric columns.
 
 ### Audio Feature Range Check
 
@@ -207,10 +215,23 @@ No infinite values found in any of the 71 numeric columns.
 |---|---|---|---|---|
 | Duration_Sec | 0.60 | 92.34 | 0 | 0 |
 | Speech_Rate_WPM | 0.00 | 571.43 | 0 | 13 |
-| Silence_Duration_Sec | 0.00 | 29.43 | 0 | 23 |
 | Mean_Pitch_Hz | 0.00 | 1339.07 | 0 | 7 |
 | Mean_Energy | 0.00 | 0.21 | 0 | 7 |
 | Mean_ZCR | 0.00 | 0.34 | 0 | 1 |
+| Total_Words | 0 | 256 | 0 | 0 |
+| Articulation_Rate_WPM | 0.00 | 1811.58 | 0 | 13 |
+| Total_Silence_Sec | 0.00 | 29.43 | 0 | 23 |
+| Silence_Ratio | 0.00 | 0.94 | 0 | 23 |
+| Pause_Count | 0 | 219 | 0 | 23 |
+| Avg_Pause_Duration_Sec | 0.00 | 1.82 | 0 | 23 |
+| Std_Pitch_Hz | 0.00 | 911.04 | 0 | 7 |
+| Pitch_Range_Hz | 0.00 | 2027.60 | 0 | 7 |
+| Std_Energy | 0.00 | 0.19 | 0 | 7 |
+| Spectral_Centroid | 0.00 | 10796.33 | 0 | 0 |
+| Spectral_Rolloff | 0.00 | 18392.35 | 0 | 0 |
+| Spectral_Contrast | 0.00 | 22.09 | 0 | 0 |
+| Filler_Word_Count | 0 | 14 | 0 | 1721 |
+| Filler_Rate_Per_Min | 0.00 | 19.04 | 0 | 1721 |
 
 **No physically impossible negative values found.** All audio features are non-negative
 as expected.
@@ -310,7 +331,6 @@ MFCC values are spectral coefficients — negative values are normal.
 | file_name | 2,011 | 0 | vid_0001.mp4 (1 each) |
 | duration_label | 3 | 0 | medium (754) |
 | question | 76 | 0 | Introduce yourself (193) |
-| video_quality | 2 | 0 | High (1,675) |
 | transcript | 1,932 | 13 | [varies] |
 
 ### Duration Label Distribution
@@ -321,13 +341,6 @@ MFCC values are spectral coefficients — negative values are normal.
 | short | 680 | 33.8% |
 | long | 577 | 28.7% |
 
-### Video Quality Distribution
-
-| Quality | Count | Percentage |
-|---|---|---|
-| High | 1,675 | 83.3% |
-| Low | 336 | 16.7% |
-
 ### Categorical Encoding Plan
 
 | Column | Plan | Rationale |
@@ -337,7 +350,6 @@ MFCC values are spectral coefficients — negative values are normal.
 | user_no | Preserve as grouping variable | For candidate-level aggregation and GroupKFold |
 | file_name | Metadata only | Traceability, not a feature |
 | question | Preserve for NLP pipeline | Will be used for text analysis |
-| video_quality | Preserve for analysis | May show bias; investigate in EDA |
 
 ---
 
@@ -391,10 +403,6 @@ MFCC values are spectral coefficients — negative values are normal.
 
 No feature-target correlation exceeded |r| > 0.5. No suspiciously high correlations found.
 
-### Exact Duplicate Check
-
-No feature column is an exact duplicate of any target column.
-
 **Conclusion:** No data leakage detected. No automatic deletions performed.
 
 ---
@@ -436,7 +444,7 @@ in interview behavior, not data errors. No removal recommended.
 | Action | Detail |
 |---|---|
 | Schema audit | Generated and saved to data_quality_report.csv |
-| Column grouping | All 76 columns validated against reference schema |
+| Column grouping | All 88 columns validated against v2 schema |
 | Missing values | Documented (transcript: 13 rows, 0.65%) |
 | Duplicate check | Completed (0 duplicate rows, all IDs unique) |
 | Infinite/invalid check | Completed (0 infinite values found) |
@@ -463,10 +471,10 @@ in interview behavior, not data errors. No removal recommended.
 
 | File | Size | Description |
 |---|---|---|
-| data/processed/clean_master_data.csv | 3,150,805 bytes | Full 2011x76 dataset with all columns |
-| data/processed/numeric_features_preprocessed.csv | 2,069,042 bytes | 2011x72 numeric features (excludes id, file_name, transcript, question) |
-| data/processed/data_quality_report.csv | 9,434 bytes | Per-column audit with dtype, missing, inf, range stats |
-| data/processed/preprocessing_summary.txt | 1,903 bytes | Text summary of preprocessing decisions |
+| data/processed/clean_master_data.csv | ~3.3 MB | Full 2011x88 dataset with all columns |
+| data/processed/numeric_features_preprocessed.csv | ~2.2 MB | 2011x84 numeric features (excludes id, file_name, transcript, question) |
+| data/processed/data_quality_report.csv | ~11 KB | Per-column audit with dtype, missing, inf, range stats |
+| data/processed/preprocessing_summary.txt | ~2 KB | Text summary of preprocessing decisions |
 | notebooks/Preprocessing/01_preprocessing.ipynb | — | Executed notebook with all outputs |
 
 ---
@@ -475,14 +483,13 @@ in interview behavior, not data errors. No removal recommended.
 
 ### EDA Stage (Immediate)
 
-1. **Distribution analysis** — Histograms and KDE plots for all 62 numeric features
+1. **Distribution analysis** — Histograms and KDE plots for all 76 numeric features
 2. **Correlation heatmap** — Feature-feature and feature-target correlations
-3. **Feature-target relationships** — Scatter plots with regression lines
-4. **Outlier visualization** — Box plots to decide on transformation/removal
-5. **Video quality impact** — Compare High vs Low quality on targets
-6. **Question-level analysis** — Which questions correlate with higher scores
-7. **Duration label analysis** — Does short/medium/long affect scores
-8. **Candidate-level analysis** — Aggregate features per user_no
+3. **New v2 feature analysis** — Evaluate 14 new audio features (pause, spectral, filler)
+4. **Feature-target relationships** — Scatter plots with regression lines
+5. **Outlier visualization** — Box plots to decide on transformation/removal
+6. **Duration label analysis** — Does short/medium/long affect scores
+7. **Candidate-level analysis** — Aggregate features per user_no
 
 ### Feature Engineering Stage (Later)
 
@@ -505,7 +512,7 @@ in interview behavior, not data errors. No removal recommended.
 
 ## 16. Appendix: Complete Column List
 
-### All 76 Columns
+### All 88 Columns
 
 | # | Column | Dtype | Group | Missing |
 |---|---|---|---|---|
@@ -514,77 +521,89 @@ in interview behavior, not data errors. No removal recommended.
 | 3 | duration_label | str | METADATA | 0 |
 | 4 | question_id | int64 | METADATA | 0 |
 | 5 | question | str | METADATA | 0 |
-| 6 | video_quality | str | METADATA | 0 |
-| 7 | user_no | int64 | METADATA | 0 |
-| 8 | openness | float64 | TARGET | 0 |
-| 9 | conscientiousness | float64 | TARGET | 0 |
-| 10 | extraversion | float64 | TARGET | 0 |
-| 11 | agreeableness | float64 | TARGET | 0 |
-| 12 | neuroticism | float64 | TARGET | 0 |
-| 13 | overall_personality | float64 | TARGET | 0 |
-| 14 | interview_score | float64 | TARGET | 0 |
-| 15 | answer_score | float64 | TARGET | 0 |
-| 16 | speaking_skills | float64 | TARGET | 0 |
-| 17 | confidence_score | float64 | TARGET | 0 |
-| 18 | facial_expression | float64 | TARGET | 0 |
-| 19 | overall_performance | float64 | TARGET | 0 |
+| 6 | openness | float64 | TARGET | 0 |
+| 7 | conscientiousness | float64 | TARGET | 0 |
+| 8 | extraversion | float64 | TARGET | 0 |
+| 9 | agreeableness | float64 | TARGET | 0 |
+| 10 | neuroticism | float64 | TARGET | 0 |
+| 11 | overall_personality | float64 | TARGET | 0 |
+| 12 | interview_score | float64 | TARGET | 0 |
+| 13 | answer_score | float64 | TARGET | 0 |
+| 14 | speaking_skills | float64 | TARGET | 0 |
+| 15 | confidence_score | float64 | TARGET | 0 |
+| 16 | facial_expression | float64 | TARGET | 0 |
+| 17 | overall_performance | float64 | TARGET | 0 |
+| 18 | transcript | str | TEXT | 13 |
+| 19 | Total_Words | int64 | AUDIO (new) | 0 |
 | 20 | Duration_Sec | float64 | AUDIO | 0 |
 | 21 | Speech_Rate_WPM | float64 | AUDIO | 0 |
-| 22 | Silence_Duration_Sec | float64 | AUDIO | 0 |
-| 23 | Mean_Pitch_Hz | float64 | AUDIO | 0 |
-| 24 | Mean_Energy | float64 | AUDIO | 0 |
-| 25 | Mean_ZCR | float64 | AUDIO | 0 |
-| 26 | MFCC_1 | float64 | MFCC | 0 |
-| 27 | MFCC_2 | float64 | MFCC | 0 |
-| 28 | MFCC_3 | float64 | MFCC | 0 |
-| 29 | MFCC_4 | float64 | MFCC | 0 |
-| 30 | MFCC_5 | float64 | MFCC | 0 |
-| 31 | MFCC_6 | float64 | MFCC | 0 |
-| 32 | MFCC_7 | float64 | MFCC | 0 |
-| 33 | MFCC_8 | float64 | MFCC | 0 |
-| 34 | MFCC_9 | float64 | MFCC | 0 |
-| 35 | MFCC_10 | float64 | MFCC | 0 |
-| 36 | MFCC_11 | float64 | MFCC | 0 |
-| 37 | MFCC_12 | float64 | MFCC | 0 |
-| 38 | MFCC_13 | float64 | MFCC | 0 |
-| 39 | face_detected_ratio | float64 | FACE | 0 |
-| 40 | gaze_ratio_mean | float64 | FACE | 0 |
-| 41 | gaze_deviation_mean | float64 | FACE | 0 |
-| 42 | gaze_stability_std | float64 | FACE | 0 |
-| 43 | smile_score_mean | float64 | FACE | 0 |
-| 44 | smile_score_std | float64 | FACE | 0 |
-| 45 | frown_score_mean | float64 | FACE | 0 |
-| 46 | frown_score_std | float64 | FACE | 0 |
-| 47 | eye_openness_mean | float64 | FACE | 0 |
-| 48 | eye_openness_std | float64 | FACE | 0 |
-| 49 | jaw_open_mean | float64 | FACE | 0 |
-| 50 | jaw_open_std | float64 | FACE | 0 |
-| 51 | brow_raise_mean | float64 | FACE | 0 |
-| 52 | brow_raise_std | float64 | FACE | 0 |
-| 53 | mouth_frown_mean | float64 | FACE | 0 |
-| 54 | mouth_frown_std | float64 | FACE | 0 |
-| 55 | emotion_happy_mean | float64 | EMOTION | 0 |
-| 56 | emotion_sad_mean | float64 | EMOTION | 0 |
-| 57 | emotion_angry_mean | float64 | EMOTION | 0 |
-| 58 | emotion_surprise_mean | float64 | EMOTION | 0 |
-| 59 | emotion_fear_mean | float64 | EMOTION | 0 |
-| 60 | emotion_disgust_mean | float64 | EMOTION | 0 |
-| 61 | emotion_neutral_mean | float64 | EMOTION | 0 |
-| 62 | head_centering_score_mean | float64 | POSTURE | 0 |
-| 63 | absolute_shoulder_slope_mean | float64 | POSTURE | 0 |
-| 64 | shoulder_slope_var | float64 | POSTURE | 0 |
-| 65 | shoulder_width_mean | float64 | POSTURE | 0 |
-| 66 | shoulder_width_var | float64 | POSTURE | 0 |
-| 67 | nose_shoulder_dist_mean | float64 | POSTURE | 0 |
-| 68 | nose_shoulder_dist_var | float64 | POSTURE | 0 |
-| 69 | hand_speed_mean | float64 | POSTURE | 0 |
-| 70 | hand_to_face_touches | int64 | POSTURE | 0 |
-| 71 | crossed_arms_score | float64 | POSTURE | 0 |
-| 72 | core_speed_mean | float64 | POSTURE | 0 |
-| 73 | posture_shift_count | int64 | POSTURE | 0 |
-| 74 | engagement_score | float64 | POSTURE | 0 |
-| 75 | agitation_score | int64 | POSTURE | 0 |
-| 76 | transcript | str | TEXT | 13 |
+| 22 | Articulation_Rate_WPM | float64 | AUDIO (new) | 0 |
+| 23 | Total_Silence_Sec | float64 | AUDIO (new) | 0 |
+| 24 | Silence_Ratio | float64 | AUDIO (new) | 0 |
+| 25 | Pause_Count | int64 | AUDIO (new) | 0 |
+| 26 | Avg_Pause_Duration_Sec | float64 | AUDIO (new) | 0 |
+| 27 | Mean_Pitch_Hz | float64 | AUDIO | 0 |
+| 28 | Std_Pitch_Hz | float64 | AUDIO (new) | 0 |
+| 29 | Pitch_Range_Hz | float64 | AUDIO (new) | 0 |
+| 30 | Mean_Energy | float64 | AUDIO | 0 |
+| 31 | Std_Energy | float64 | AUDIO (new) | 0 |
+| 32 | Spectral_Centroid | float64 | AUDIO (new) | 0 |
+| 33 | Spectral_Rolloff | float64 | AUDIO (new) | 0 |
+| 34 | Spectral_Contrast | float64 | AUDIO (new) | 0 |
+| 35 | Mean_ZCR | float64 | AUDIO | 0 |
+| 36 | Filler_Word_Count | int64 | AUDIO (new) | 0 |
+| 37 | Filler_Rate_Per_Min | float64 | AUDIO (new) | 0 |
+| 38 | MFCC_1 | float64 | MFCC | 0 |
+| 39 | MFCC_2 | float64 | MFCC | 0 |
+| 40 | MFCC_3 | float64 | MFCC | 0 |
+| 41 | MFCC_4 | float64 | MFCC | 0 |
+| 42 | MFCC_5 | float64 | MFCC | 0 |
+| 43 | MFCC_6 | float64 | MFCC | 0 |
+| 44 | MFCC_7 | float64 | MFCC | 0 |
+| 45 | MFCC_8 | float64 | MFCC | 0 |
+| 46 | MFCC_9 | float64 | MFCC | 0 |
+| 47 | MFCC_10 | float64 | MFCC | 0 |
+| 48 | MFCC_11 | float64 | MFCC | 0 |
+| 49 | MFCC_12 | float64 | MFCC | 0 |
+| 50 | MFCC_13 | float64 | MFCC | 0 |
+| 51 | face_detected_ratio | float64 | FACE | 0 |
+| 52 | gaze_ratio_mean | float64 | FACE | 0 |
+| 53 | gaze_deviation_mean | float64 | FACE | 0 |
+| 54 | gaze_stability_std | float64 | FACE | 0 |
+| 55 | smile_score_mean | float64 | FACE | 0 |
+| 56 | smile_score_std | float64 | FACE | 0 |
+| 57 | frown_score_mean | float64 | FACE | 0 |
+| 58 | frown_score_std | float64 | FACE | 0 |
+| 59 | eye_openness_mean | float64 | FACE | 0 |
+| 60 | eye_openness_std | float64 | FACE | 0 |
+| 61 | jaw_open_mean | float64 | FACE | 0 |
+| 62 | jaw_open_std | float64 | FACE | 0 |
+| 63 | brow_raise_mean | float64 | FACE | 0 |
+| 64 | brow_raise_std | float64 | FACE | 0 |
+| 65 | mouth_frown_mean | float64 | FACE | 0 |
+| 66 | mouth_frown_std | float64 | FACE | 0 |
+| 67 | emotion_happy_mean | float64 | EMOTION | 0 |
+| 68 | emotion_sad_mean | float64 | EMOTION | 0 |
+| 69 | emotion_angry_mean | float64 | EMOTION | 0 |
+| 70 | emotion_surprise_mean | float64 | EMOTION | 0 |
+| 71 | emotion_fear_mean | float64 | EMOTION | 0 |
+| 72 | emotion_disgust_mean | float64 | EMOTION | 0 |
+| 73 | emotion_neutral_mean | float64 | EMOTION | 0 |
+| 74 | head_centering_score_mean | float64 | POSTURE | 0 |
+| 75 | absolute_shoulder_slope_mean | float64 | POSTURE | 0 |
+| 76 | shoulder_slope_var | float64 | POSTURE | 0 |
+| 77 | shoulder_width_mean | float64 | POSTURE | 0 |
+| 78 | shoulder_width_var | float64 | POSTURE | 0 |
+| 79 | nose_shoulder_dist_mean | float64 | POSTURE | 0 |
+| 80 | nose_shoulder_dist_var | float64 | POSTURE | 0 |
+| 81 | hand_speed_mean | float64 | POSTURE | 0 |
+| 82 | hand_to_face_touches | int64 | POSTURE | 0 |
+| 83 | crossed_arms_score | float64 | POSTURE | 0 |
+| 84 | core_speed_mean | float64 | POSTURE | 0 |
+| 85 | posture_shift_count | int64 | POSTURE | 0 |
+| 86 | engagement_score | float64 | POSTURE | 0 |
+| 87 | agitation_score | int64 | POSTURE | 0 |
+| 88 | user_no | int64 | METADATA | 0 |
 
 ---
 
