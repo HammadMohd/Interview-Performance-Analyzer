@@ -7,7 +7,7 @@ Usage:
 """
 
 import sys
-from src.eda_merged_features import main
+from src.eda.eda_merged_features import main
 
 if __name__ == '__main__':
     main()
