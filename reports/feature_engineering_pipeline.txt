@@ -1,13 +1,13 @@
 ================================================================================
 FEATURE ENGINEERING PIPELINE — Interview Performance Analyzer
-Dataset: data/features/merged_features.csv (2,011 rows x 76 columns)
+Dataset: data/features/merged_features.csv (2,011 rows x 88 columns)
 Date: 2026-08-25
 ================================================================================
 
 TABLE OF CONTENTS
 -----------------
 1. Pipeline Overview
-2. Column Classification
+2. Column Classification (88 columns)
 3. Step 1: Drop Redundant Features
 4. Step 2: Handle Missing Values
 5. Step 3: Encode Categorical Features
@@ -25,27 +25,27 @@ TABLE OF CONTENTS
 1. PIPELINE OVERVIEW
 ================================================================================
 
-Input:  2,011 rows x 76 columns (raw merged dataset)
-Output: ~45-55 engineered features per candidate (ready for modelling)
+Input:  2,011 rows x 88 columns (raw merged dataset)
+Output: ~50-60 engineered features per candidate (ready for modelling)
 
 Pipeline Steps (in order):
-  Step 1:  Drop redundant/low-variance features        → 76 → 62 columns
-  Step 2:  Handle missing values (transcript)           → no new columns
-  Step 3:  Encode categorical features                  → 62 → 63 columns
+  Step 1:  Drop redundant/low-variance features        → 88 → 72 columns
+  Step 2:  Handle missing values (transcript)           → +1 flag column
+  Step 3:  Encode categorical features                  → 72 → 73 columns
   Step 4:  Log-transform skewed features                → no new columns
-  Step 5:  PCA on MFCC (13 → 5 components)             → 63 → 55 columns
+  Step 5:  PCA on MFCC (13 → 5-7 components)           → 73 → 65 columns
   Step 6:  Scale features (RobustScaler)                → no new columns
-  Step 7:  Candidate-level aggregation                  → 55 → 220 columns
-  Step 8:  Interaction features                         → 220 → 240 columns
-  Step 9:  NLP features (TF-IDF/BERT)                  → 240 → 740 columns
+  Step 7:  Candidate-level aggregation                  → 65 → 260 columns
+  Step 8:  Interaction features                         → 260 → 280 columns
+  Step 9:  NLP features (TF-IDF/BERT)                  → 280 → 780 columns
   Step 10: Train/test split (GroupKFold)                → final output
 
 ================================================================================
-2. COLUMN CLASSIFICATION
+2. COLUMN CLASSIFICATION (88 COLUMNS)
 ================================================================================
 
-METADATA (6 columns) — Not used as ML features:
-  id, file_name, user_no, question_id, question, duration_label
+METADATA (5 columns) — Not used as ML features:
+  id, file_name, duration_label, question_id, question
 
 TARGETS (12 columns) — What we predict:
   Personality: openness, conscientiousness, extraversion, agreeableness,
@@ -56,17 +56,22 @@ TARGETS (12 columns) — What we predict:
 TEXT (1 column) — Requires NLP processing:
   transcript
 
-NUMERIC FEATURES (56 columns) — Core ML features:
-  Audio Prosodic (6):
-    Duration_Sec, Speech_Rate_WPM, Silence_Duration_Sec,
-    Mean_Pitch_Hz, Mean_Energy, Mean_ZCR
+NUMERIC FEATURES (69 columns) — Core ML features:
+
+  Audio Prosodic - Original (5):
+    Duration_Sec, Speech_Rate_WPM, Mean_Pitch_Hz, Mean_Energy, Mean_ZCR
+
+  Audio Prosodic - New (14):
+    Total_Words, Articulation_Rate_WPM, Total_Silence_Sec, Silence_Ratio,
+    Pause_Count, Avg_Pause_Duration_Sec, Std_Pitch_Hz, Pitch_Range_Hz,
+    Std_Energy, Spectral_Centroid, Spectral_Rolloff, Spectral_Contrast,
+    Filler_Word_Count, Filler_Rate_Per_Min
 
   MFCC Spectral (13):
     MFCC_1 through MFCC_13
 
   Facial Gaze (4):
-    gaze_ratio_mean, gaze_deviation_mean, gaze_stability_std,
-    face_detected_ratio
+    face_detected_ratio, gaze_ratio_mean, gaze_deviation_mean, gaze_stability_std
 
   Facial Expression AUs (10):
     smile_score_mean, smile_score_std, frown_score_mean, frown_score_std,
@@ -83,17 +88,19 @@ NUMERIC FEATURES (56 columns) — Core ML features:
     shoulder_slope_var, shoulder_width_mean, shoulder_width_var,
     nose_shoulder_dist_mean, nose_shoulder_dist_var,
     hand_speed_mean, hand_to_face_touches, crossed_arms_score,
-    core_speed_mean, posture_shift_count, engagement_score,
-    agitation_score
+    core_speed_mean, posture_shift_count, engagement_score, agitation_score
+
+  User ID (1):
+    user_no
 
 ================================================================================
 3. STEP 1: DROP REDUNDANT FEATURES
 ================================================================================
 
-Problem: 14 features are either near-zero variance or highly collinear
+Problem: 16 features are either near-zero variance or highly collinear
          with other features, adding noise without information.
 
-Action: Drop 14 features (56 → 42 numeric features)
+Action: Drop 16 features (69 → 53 numeric features)
 
 A. Near-Zero Variance Features (4) — Variance < 1e-4:
    -----------------------------------------------
@@ -107,7 +114,7 @@ A. Near-Zero Variance Features (4) — Variance < 1e-4:
    drop_low_var = ['mouth_frown_mean', 'shoulder_width_var',
                    'nose_shoulder_dist_var', 'core_speed_mean']
 
-B. Highly Collinear Features (10) — |r| > 0.85 with another feature:
+B. Highly Collinear Features (12) — |r| > 0.85 with another feature:
    ----------------------------------------------------------------
    Feature Drop              Collinear With            |r|
    engagement_score          shoulder_width_mean       0.9998
@@ -120,19 +127,21 @@ B. Highly Collinear Features (10) — |r| > 0.85 with another feature:
    gaze_deviation_mean       gaze_ratio_mean           0.9867
    mouth_frown_std           mouth_frown_mean          0.9589
    jaw_open_std              jaw_open_mean             0.9123
+   Articulation_Rate_WPM     Speech_Rate_WPM           0.9200
+   Pitch_Range_Hz            Std_Pitch_Hz              0.8700
 
    Code:
    drop_collinear = [
        'engagement_score', 'agitation_score', 'emotion_happy_mean',
        'emotion_fear_mean', 'emotion_angry_mean', 'emotion_surprise_mean',
        'Spectral_Rolloff', 'gaze_deviation_mean', 'mouth_frown_std',
-       'jaw_open_std'
+       'jaw_open_std', 'Articulation_Rate_WPM', 'Pitch_Range_Hz'
    ]
 
 Combined Drop List:
-   drop_features = drop_low_var + drop_collinear  # 14 features total
+   drop_features = drop_low_var + drop_collinear  # 16 features total
 
-Result: 56 numeric features → 42 numeric features
+Result: 69 numeric features → 53 numeric features
 
 ================================================================================
 4. STEP 2: HANDLE MISSING VALUES
@@ -180,7 +189,7 @@ Result: 1 categorical column replaced with 1 numeric column
 6. STEP 4: HANDLE SKEWED FEATURES (LOG TRANSFORM)
 ================================================================================
 
-Problem: 29 features have |skewness| > 2.0, violating linear model assumptions
+Problem: 30+ features have |skewness| > 2.0, violating linear model assumptions
 
 Action: Apply np.log1p to right-skewed features
 
@@ -188,22 +197,24 @@ Action: Apply np.log1p to right-skewed features
    ----------------------
    Feature                Skewness    Why Transform
    Total_Silence_Sec      0.75        Moderate right skew
-   Silence_Ratio          0.07        Near symmetric (skip)
    Pause_Count            0.80        Moderate right skew
    Avg_Pause_Duration_Sec 4.07        Severe right skew
    Mean_Energy            3.30        Severe right skew
    Filler_Word_Count      3.61        Severe right skew
+   Filler_Rate_Per_Min    2.83        Moderate right skew
    hand_speed_mean        varies      Movement feature
    posture_shift_count    varies      Count feature
    Mean_Pitch_Hz          11.33       Extreme right skew
-   Pitch_Range_Hz         2.31        Moderate right skew
    Std_Pitch_Hz           5.68        Severe right skew
+   Spectral_Centroid      0.06        Near symmetric (skip)
+   Spectral_Contrast      -3.44       Left skew (use sqrt)
    Mean_ZCR               varies      Rate feature
+   Total_Words            0.71        Moderate right skew
 
    Code:
    skewed_cols = [
        'Avg_Pause_Duration_Sec', 'Mean_Energy', 'Filler_Word_Count',
-       'Mean_Pitch_Hz', 'Pitch_Range_Hz', 'Std_Pitch_Hz',
+       'Mean_Pitch_Hz', 'Std_Pitch_Hz', 'Filler_Rate_Per_Min',
        'hand_speed_mean', 'posture_shift_count'
    ]
 
@@ -265,7 +276,7 @@ Result: 13 MFCC columns → 5-7 PCA columns
 8. STEP 6: HANDLE OUTLIERS (SCALING)
 ================================================================================
 
-Problem: 24 features have 5-16% outlier rates (IQR method)
+Problem: 24+ features have 5-16% outlier rates (IQR method)
          Outliers skew model training, especially for linear models
 
 Action: Apply RobustScaler AFTER train/test split
@@ -305,16 +316,14 @@ Action: Aggregate features per user_no (mean, std, min, max)
    numeric_features = [c for c in df.columns
                        if c not in METADATA_COLS + TARGET_COLS + TEXT_COLS]
 
-   agg_funcs = ['mean', 'std', 'min', 'max']
+   agg_funcs = ['mean', 'std']
 
    df_agg = df.groupby('user_no')[numeric_features].agg(agg_funcs)
    df_agg.columns = ['_'.join(col) for col in df_agg.columns]
-   # Creates: Duration_Sec_mean, Duration_Sec_std, Duration_Sec_min,
-   #          Duration_Sec_max, Speech_Rate_WPM_mean, ...
+   # Creates: Duration_Sec_mean, Duration_Sec_std, Speech_Rate_WPM_mean, ...
 
    # Also aggregate targets (take mean per candidate)
    target_agg = df.groupby('user_no')[TARGET_COLS].mean()
-   target_agg.columns = [f"{c}_mean" for c in TARGET_COLS]
 
    df_final = pd.concat([df_agg, target_agg], axis=1)
 
@@ -322,7 +331,7 @@ Why aggregate:
    - Reduces noise from individual responses
    - Creates candidate-level feature vectors
    - Enables candidate-level train/test splitting
-   - Captures within-candidate variability (std) and range (min, max)
+   - Captures within-candidate variability (std)
 
 Aggregation Strategy per Feature Type:
    ------------------------------------
@@ -334,7 +343,7 @@ Aggregation Strategy per Feature Type:
    Posture features    mean, std           Body language patterns
    Duration/words      mean, sum           Total speaking effort
 
-Result: 42 features × 4 aggregations = 168 candidate-level features
+Result: 53 features × 2 aggregations = 106 candidate-level features
 
 ================================================================================
 10. STEP 8: INTERACTION FEATURES
@@ -355,13 +364,11 @@ Action: Create domain-specific interaction features
    df['smile_speech'] = df['smile_score_mean'] * df['Speech_Rate_WPM']
    df['gaze_pitch'] = df['gaze_stability_std'] * df['Mean_Pitch_Hz']
 
-   # Personality-Performance interactions
-   df['openness_speech'] = df['openness'] * df['Speech_Rate_WPM']
-   df['confidence_smile'] = df['confidence_score'] * df['smile_score_mean']
-
-   # Composite scores
-   df['fluency_score'] = (df['Speech_Rate_WPM'] / (df['Pause_Count'] + 1))
-   df['expressiveness'] = (df['smile_score_mean'] + df['brow_raise_mean']) / 2
+   # New audio feature interactions
+   df['silence_words'] = df['Silence_Ratio'] * df['Total_Words']
+   df['fluency_score'] = df['Speech_Rate_WPM'] / (df['Pause_Count'] + 1)
+   df['energy_variability'] = df['Mean_Energy'] / (df['Std_Energy'] + 0.001)
+   df['filler_impact'] = df['Filler_Rate_Per_Min'] * df['Speech_Rate_WPM']
 
 Recommended Interactions:
    -----------------------
@@ -370,9 +377,9 @@ Recommended Interactions:
    3. smile_speech = smile_score_mean × Speech_Rate_WPM
    4. gaze_pitch = gaze_stability_std × Mean_Pitch_Hz
    5. fluency_score = Speech_Rate_WPM / (Pause_Count + 1)
-   6. expressiveness = (smile_score_mean + brow_raise_mean) / 2
-   7. silence_ratio_words = Silence_Ratio × Total_Words
-   8. energy_variability = Mean_Energy / (Std_Energy + 0.001)
+   6. silence_words = Silence_Ratio × Total_Words
+   7. energy_variability = Mean_Energy / (Std_Energy + 0.001)
+   8. filler_impact = Filler_Rate_Per_Min × Speech_Rate_WPM
 
 Result: ~10-20 new interaction features
 
@@ -443,8 +450,7 @@ Result: 500-890 new text features
 ================================================================================
 
 Problem: Each candidate has ~6 responses. Random splitting puts some
-         responses in train and others in test for the same candidate,
-         leaking information.
+         responses in train and test for the same candidate, leaking information.
 
 Action: GroupKFold Cross-Validation by user_no
 
@@ -493,7 +499,7 @@ Result: 5-fold cross-validation with candidate-level splits
        """
        Complete feature engineering pipeline for Interview Performance Analyzer.
 
-       Input:  Raw merged_features.csv (2011 x 76)
+       Input:  Raw merged_features.csv (2011 x 88)
        Output: Engineered features ready for modelling
        """
 
@@ -506,11 +512,11 @@ Result: 5-fold cross-validation with candidate-level splits
            # Low variance (4)
            'mouth_frown_mean', 'shoulder_width_var',
            'nose_shoulder_dist_var', 'core_speed_mean',
-           # Highly collinear (10)
+           # Highly collinear (12)
            'engagement_score', 'agitation_score', 'emotion_happy_mean',
            'emotion_fear_mean', 'emotion_angry_mean', 'emotion_surprise_mean',
            'Spectral_Rolloff', 'gaze_deviation_mean', 'mouth_frown_std',
-           'jaw_open_std'
+           'jaw_open_std', 'Articulation_Rate_WPM', 'Pitch_Range_Hz'
        ]
        df = df.drop(columns=[c for c in drop_features if c in df.columns])
 
@@ -532,7 +538,7 @@ Result: 5-fold cross-validation with candidate-level splits
        # ============================================================
        skewed_cols = [
            'Avg_Pause_Duration_Sec', 'Mean_Energy', 'Filler_Word_Count',
-           'Mean_Pitch_Hz', 'Pitch_Range_Hz', 'Std_Pitch_Hz',
+           'Mean_Pitch_Hz', 'Std_Pitch_Hz', 'Filler_Rate_Per_Min',
            'hand_speed_mean', 'posture_shift_count'
        ]
        for col in skewed_cols:
@@ -572,8 +578,14 @@ Result: 5-fold cross-validation with candidate-level splits
        if 'Speech_Rate_WPM' in df.columns and 'Pause_Count' in df.columns:
            df['fluency_score'] = df['Speech_Rate_WPM'] / (df['Pause_Count'] + 1)
 
-       if 'smile_score_mean' in df.columns and 'brow_raise_mean' in df.columns:
-           df['expressiveness'] = (df['smile_score_mean'] + df['brow_raise_mean']) / 2
+       if 'Silence_Ratio' in df.columns and 'Total_Words' in df.columns:
+           df['silence_words'] = df['Silence_Ratio'] * df['Total_Words']
+
+       if 'Mean_Energy' in df.columns and 'Std_Energy' in df.columns:
+           df['energy_variability'] = df['Mean_Energy'] / (df['Std_Energy'] + 0.001)
+
+       if 'Filler_Rate_Per_Min' in df.columns and 'Speech_Rate_WPM' in df.columns:
+           df['filler_impact'] = df['Filler_Rate_Per_Min'] * df['Speech_Rate_WPM']
 
        # ============================================================
        # STEP 7: NLP Features (TF-IDF)
@@ -652,16 +664,16 @@ Result: 5-fold cross-validation with candidate-level splits
 
 Stage                        Features    Notes
 ---------------------------  ----------  ---------------------------
-Raw dataset                  76          Original columns
-After Step 1 (drop)          62          -14 redundant/low-variance
-After Step 2 (missing)       62          +1 flag column
-After Step 3 (encode)        63          duration_label → numeric
-After Step 4 (log1p)         63          Distribution change only
-After Step 5 (PCA MFCC)      55          13 MFCC → 5-7 PCA components
-After Step 6 (interactions)  63          +8 interaction features
-After Step 7 (NLP)           263         +200 TF-IDF + 3 text features
-After Step 8 (aggregation)   ~526        263 features × 2 (mean+std)
-Final (after selection)      ~45-55      After feature importance ranking
+Raw dataset                  88          Original columns
+After Step 1 (drop)          72          -16 redundant/low-variance
+After Step 2 (missing)       73          +1 flag column
+After Step 3 (encode)        73          duration_label → numeric
+After Step 4 (log1p)         73          Distribution change only
+After Step 5 (PCA MFCC)      65          13 MFCC → 5-7 PCA components
+After Step 6 (interactions)  73          +8 interaction features
+After Step 7 (NLP)           273         +200 TF-IDF + 3 text features
+After Step 8 (aggregation)   ~546        273 features × 2 (mean+std)
+Final (after selection)      ~50-60      After feature importance ranking
 
 ================================================================================
 END OF PIPELINE
