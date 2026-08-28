@@ -308,14 +308,16 @@ Step 4: Log-Transform Skewed Features
      Mean_Pitch_Hz, Std_Pitch_Hz, Filler_Rate_Per_Min,
      hand_speed_mean, posture_shift_count
 
-Step 5: PCA on MFCC (73 → 65 columns)
-   - 13 MFCC coefficients → 5-7 PCA components (retain 95% variance)
-   - Reduces multicollinearity
-
-Step 6: NLP Features (65 → 273 columns)
+Step 5: NLP Features (65 → 273 columns)
    - TF-IDF: 200 features
    - Handcrafted: 8 features
    - Total: 208 new NLP features
+   - MUST come before PCA (converts text → numbers)
+
+Step 6: PCA on MFCC (273 → 265 columns)
+   - 13 MFCC coefficients → 5-7 PCA components (retain 95% variance)
+   - Reduces multicollinearity
+   - Can also apply PCA to NLP features if needed
 
 Step 7: Scale Features
    - RobustScaler for linear models (Ridge, Lasso)
@@ -724,24 +726,7 @@ Step 10: Train/Test Split
 
 
    # ================================================================
-   # STEP 6: PCA ON MFCC
-   # ================================================================
-   mfcc_cols = [f"MFCC_{i}" for i in range(1, 14)]
-   if all(c in df.columns for c in mfcc_cols):
-       pca = PCA(n_components=0.95)
-       mfcc_pca = pca.fit_transform(df[mfcc_cols])
-       n_components = mfcc_pca.shape[1]
-       mfcc_df = pd.DataFrame(
-           mfcc_pca,
-           columns=[f"MFCC_PC{i+1}" for i in range(n_components)]
-       )
-       df = df.drop(columns=mfcc_cols).reset_index(drop=True)
-       df = pd.concat([df, mfcc_df], axis=1)
-   print(f"After PCA: {df.shape}")
-
-
-   # ================================================================
-   # STEP 7: NLP FEATURES (TF-IDF + Handcrafted)
+   # STEP 5: NLP FEATURES (TF-IDF + Handcrafted)
    # ================================================================
    # Handcrafted
    df['word_count'] = df['transcript'].str.split().str.len()
@@ -769,6 +754,23 @@ Step 10: Train/Test Split
    )
    df = pd.concat([df.reset_index(drop=True), tfidf_df.reset_index(drop=True)], axis=1)
    print(f"After NLP: {df.shape}")
+
+
+   # ================================================================
+   # STEP 6: PCA ON MFCC
+   # ================================================================
+   mfcc_cols = [f"MFCC_{i}" for i in range(1, 14)]
+   if all(c in df.columns for c in mfcc_cols):
+       pca = PCA(n_components=0.95)
+       mfcc_pca = pca.fit_transform(df[mfcc_cols])
+       n_components = mfcc_pca.shape[1]
+       mfcc_df = pd.DataFrame(
+           mfcc_pca,
+           columns=[f"MFCC_PC{i+1}" for i in range(n_components)]
+       )
+       df = df.drop(columns=mfcc_cols).reset_index(drop=True)
+       df = pd.concat([df, mfcc_df], axis=1)
+   print(f"After PCA: {df.shape}")
 
 
    # ================================================================
