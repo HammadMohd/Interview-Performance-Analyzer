@@ -319,24 +319,27 @@ Step 6: PCA on MFCC (273 → 265 columns)
    - Reduces multicollinearity
    - Can also apply PCA to NLP features if needed
 
-Step 7: Scale Features
-   - RobustScaler for linear models (Ridge, Lasso)
-   - No scaling for tree models (XGBoost, RF)
+Step 7: Interaction Features (265 → 272 columns)
+   - Speech-Posture: Speech_Rate_WPM × head_centering_score_mean
+   - Pause-Facial: Pause_Count × brow_raise_std
+   - Smile-Speech: smile_score_mean × Speech_Rate_WPM
+   - Fluency: Speech_Rate_WPM / (Pause_Count + 1)
 
-Step 8: Candidate-Level Aggregation (273 → 546 columns)
+Step 8: Candidate-Level Aggregation (272 → 544 columns)
    - Group by user_no
-   - Calculate mean and std for all features
-   - Creates candidate-level feature vectors
+   - Aggregate features: mean, std
+   - Aggregate targets: mean only
+   - Result: 272 features × 2 = 544 candidate-level features
 
-Step 9: Interaction Features (546 → 566 columns)
-   - 20 cross-modal interactions:
-     speech_engagement, pause_confidence, smile_speech,
-     gaze_pitch, fluency_score, silence_words,
-     energy_variability, filler_impact, etc.
+Step 9: Define Features and Targets
+   - Separate features (X) and targets (y)
+   - Exclude metadata: id, file_name, user_no, question_id, question, transcript
+   - 12 target variables
 
-Step 10: Train/Test Split
+Step 10: Cross-Validation with Scaling
    - GroupKFold(n_splits=5, groups=user_no)
-   - Prevents candidate data leakage
+   - RobustScaler inside CV loop for linear models
+   - No scaling for tree models
 
 ================================================================================
 5. FEATURE ENGINEERING PIPELINE
@@ -713,7 +716,7 @@ Step 10: Train/Test Split
 
 
    # ================================================================
-   # STEP 5: LOG-TRANSFORM SKEWED FEATURES
+   # STEP 4: LOG-TRANSFORM SKEWED FEATURES
    # ================================================================
    skewed_cols = [
        'Avg_Pause_Duration_Sec', 'Mean_Energy', 'Filler_Word_Count',
@@ -774,7 +777,7 @@ Step 10: Train/Test Split
 
 
    # ================================================================
-   # STEP 8: INTERACTION FEATURES
+   # STEP 7: INTERACTION FEATURES
    # ================================================================
    if 'Speech_Rate_WPM' in df.columns and 'head_centering_score_mean' in df.columns:
        df['speech_engagement'] = df['Speech_Rate_WPM'] * df['head_centering_score_mean']
@@ -790,21 +793,38 @@ Step 10: Train/Test Split
        df['energy_variability'] = df['Mean_Energy'] / (df['Std_Energy'] + 0.001)
    if 'Filler_Rate_Per_Min' in df.columns and 'Speech_Rate_WPM' in df.columns:
        df['filler_impact'] = df['Filler_Rate_Per_Min'] * df['Speech_Rate_WPM']
+   print(f"After interactions: {df.shape}")
 
 
    # ================================================================
-   # STEP 9: DEFINE FEATURES AND TARGETS
+   # STEP 8: CANDIDATE-LEVEL AGGREGATION
    # ================================================================
+   # Aggregate features per candidate (mean, std)
+   exclude_cols = ['id', 'file_name', 'user_no', 'question_id', 'question', 'transcript']
    target_cols = [
        'openness', 'conscientiousness', 'extraversion', 'agreeableness',
        'neuroticism', 'overall_personality', 'interview_score', 'answer_score',
        'speaking_skills', 'confidence_score', 'facial_expression', 'overall_performance'
    ]
-   exclude_cols = ['id', 'file_name', 'user_no', 'question_id', 'question', 'transcript']
    feature_cols = [c for c in df.columns if c not in target_cols + exclude_cols]
 
-   X = df[feature_cols]
-   y = df[target_cols]
+   agg_funcs = ['mean', 'std']
+   df_agg = df.groupby('user_no')[feature_cols].agg(agg_funcs)
+   df_agg.columns = ['_'.join(col) for col in df_agg.columns]
+
+   # Aggregate targets (take mean per candidate)
+   target_agg = df.groupby('user_no')[target_cols].mean()
+
+   # Merge
+   df_candidate = pd.concat([df_agg, target_agg], axis=1).reset_index()
+   print(f"After aggregation: {df_candidate.shape}")
+
+
+   # ================================================================
+   # STEP 9: DEFINE FEATURES AND TARGETS
+   # ================================================================
+   X = df_candidate[feature_cols]
+   y = df_candidate[target_cols]
 
 
    # ================================================================
