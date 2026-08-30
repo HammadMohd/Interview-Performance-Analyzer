@@ -1,0 +1,949 @@
+================================================================================
+INTERVIEW PERFORMANCE ANALYZER - COMPLETE PROJECT GUIDE
+Dataset: 2,011 rows x 88 columns | 331 candidates | 12 targets
+Date: 2026-08-26
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. Project Overview
+2. Data Understanding
+3. Feature Extraction (Audio, Facial, Posture, Text)
+4. Preprocessing Pipeline
+5. Feature Engineering Pipeline
+6. NLP Techniques
+7. Modelling Approaches
+8. Evaluation Metrics
+9. Cross-Validation Strategy
+10. Complete Pipeline Code
+11. Common Mistakes to Avoid
+12. References
+
+================================================================================
+1. PROJECT OVERVIEW
+================================================================================
+
+Goal:
+   Predict interview performance using multimodal features extracted from
+   video interviews (audio, facial expressions, body posture, transcripts).
+
+Input:
+   - 2,011 video interview segments
+   - 331 unique candidates
+   - Each candidate answered 1-17 questions (median: 6)
+
+Output:
+   - 6 performance scores (regression targets)
+   - 6 personality traits (regression targets)
+
+Why This Matters:
+   - Automate interview screening
+   - Reduce human bias in hiring
+   - Identify top candidates faster
+   - Provide feedback to candidates
+
+================================================================================
+2. DATA UNDERSTANDING
+================================================================================
+
+2.1 Dataset Shape
+   - Rows: 2,011 (interview segments)
+   - Columns: 88
+   - Memory: ~3.3 MB
+
+2.2 Column Groups (88 columns total)
+
+   METADATA (5 columns) — Not used as ML features:
+      id                    int64     Unique segment ID
+      file_name             str       Video filename
+      duration_label        str       short/medium/long
+      question_id           int64     Question number
+      question              str       Question text
+
+   TARGETS (12 columns) — What we predict:
+      Personality (6):
+         openness            float64   Big Five: Openness
+         conscientiousness   float64   Big Five: Conscientiousness
+         extraversion        float64   Big Five: Extraversion
+         agreeableness       float64   Big Five: Agreeableness
+         neuroticism         float64   Big Five: Neuroticism
+         overall_personality float64   Combined personality score
+
+      Performance (6):
+         interview_score     float64   Overall interview rating
+         answer_score        float64   Quality of answers
+         speaking_skills     float64   Communication ability
+         confidence_score    float64   Confidence level
+         facial_expression   float64   Facial expressiveness
+         overall_performance float64   Combined performance score
+
+   TEXT (1 column):
+      transcript            str       Interview transcript
+
+   NUMERIC FEATURES (69 columns):
+
+      Audio Prosodic - Original (5):
+         Duration_Sec                float64   Response duration (seconds)
+         Speech_Rate_WPM             float64   Words per minute
+         Mean_Pitch_Hz               float64   Average pitch (Hz)
+         Mean_Energy                 float64   Average energy
+         Mean_ZCR                    float64   Zero crossing rate
+
+      Audio Prosodic - New (14):
+         Total_Words                 int64     Word count from transcript
+         Articulation_Rate_WPM       float64   Speech rate excluding silence
+         Total_Silence_Sec           float64   Total silence duration
+         Silence_Ratio               float64   Proportion of silence [0,1]
+         Pause_Count                 int64     Number of pauses
+         Avg_Pause_Duration_Sec      float64   Average pause length
+         Std_Pitch_Hz                float64   Pitch variability
+         Pitch_Range_Hz              float64   Pitch range (max-min)
+         Std_Energy                  float64   Energy variability
+         Spectral_Centroid           float64   Center of spectral mass (Hz)
+         Spectral_Rolloff            float64   85% energy frequency (Hz)
+         Spectral_Contrast           float64   Peak-valley difference
+         Filler_Word_Count           int64     Count of filler words
+         Filler_Rate_Per_Min         float64   Fillers per minute
+
+      MFCC Spectral (13):
+         MFCC_1 through MFCC_13      float64   Mel-frequency cepstral coefficients
+
+      Facial Gaze (4):
+         face_detected_ratio         float64   Face tracking success rate
+         gaze_ratio_mean             float64   Average gaze direction
+         gaze_deviation_mean         float64   Gaze deviation from center
+         gaze_stability_std          float64   Gaze stability (lower=more stable)
+
+      Facial Expression AUs (10):
+         smile_score_mean/std        float64   Smile intensity
+         frown_score_mean/std        float64   Frown intensity
+         eye_openness_mean/std       float64   Eye openness
+         jaw_open_mean/std           float64   Jaw opening
+         brow_raise_mean/std         float64   Eyebrow raising
+         mouth_frown_mean/std        float64   Mouth frowning
+
+      Facial Emotions (7):
+         emotion_happy_mean          float64   Happy probability
+         emotion_sad_mean            float64   Sad probability
+         emotion_angry_mean          float64   Angry probability
+         emotion_surprise_mean       float64   Surprise probability
+         emotion_fear_mean           float64   Fear probability
+         emotion_disgust_mean        float64   Disgust probability
+         emotion_neutral_mean        float64   Neutral probability
+
+      Posture (14):
+         head_centering_score_mean   float64   Head alignment
+         absolute_shoulder_slope_mean float64  Shoulder tilt
+         shoulder_slope_var          float64   Shoulder tilt variability
+         shoulder_width_mean         float64   Shoulder width
+         shoulder_width_var          float64   Shoulder width variability
+         nose_shoulder_dist_mean     float64   Nose-shoulder distance
+         nose_shoulder_dist_var      float64   Nose-shoulder variability
+         hand_speed_mean             float64   Hand movement speed
+         hand_to_face_touches        int64     Face touching count
+         crossed_arms_score          float64   Arms crossing score
+         core_speed_mean             float64   Core body movement
+         posture_shift_count         int64     Posture change count
+         engagement_score            float64   Engagement composite
+         agitation_score             int64     Agitation composite
+
+      User ID (1):
+         user_no                     int64     Candidate identifier
+
+2.3 Key Statistics
+
+   Missing Values:
+      - transcript: 13 rows (0.65%)
+      - All numeric features: 0 missing
+      - All targets: 0 missing
+
+   Duplicates:
+      - 0 duplicate rows
+      - 0 duplicate IDs
+
+   Candidates:
+      - 331 unique candidates
+      - Avg responses per candidate: 6.1
+      - Range: 1 to 17 responses
+
+   Target Distribution:
+      - All targets are z-normalized (mean ~ 0, std ~ 1)
+      - Skewness range: -0.86 to +0.68
+
+================================================================================
+3. FEATURE EXTRACTION
+================================================================================
+
+3.1 Audio Features (19 features)
+
+   Source: Interview audio tracks
+   Tools: librosa, pyAudioAnalysis
+
+   How Extracted:
+      1. Load audio from video file
+      2. Extract temporal features (duration, speech rate, pauses)
+      3. Extract spectral features (pitch, energy, MFCCs)
+      4. Extract fluency features (filler words, silence ratio)
+
+   Feature Details:
+      - Duration_Sec: Total response time
+      - Speech_Rate_WPM: Words spoken per minute
+      - Total_Silence_Sec: Time with no speech
+      - Silence_Ratio: Silence / Total duration
+      - Pause_Count: Number of silent segments > 0.5s
+      - Avg_Pause_Duration_Sec: Average pause length
+      - Mean_Pitch_Hz: Fundamental frequency (F0)
+      - Std_Pitch_Hz: Pitch variation
+      - Pitch_Range_Hz: Max pitch - Min pitch
+      - Mean_Energy: RMS energy
+      - Std_Energy: Energy variation
+      - Mean_ZCR: Zero crossing rate (noisiness indicator)
+      - Total_Words: Word count from transcript
+      - Articulation_Rate_WPM: Speech rate excluding silence
+      - Filler_Word_Count: um, uh, like, you know, basically, actually
+      - Filler_Rate_Per_Min: Fillers per minute
+      - Spectral_Centroid: Center of spectral mass
+      - Spectral_Rolloff: Frequency below which 85% energy lies
+      - Spectral_Contrast: Difference between peaks and valleys
+
+   MFCC Features (13):
+      - MFCC_1 to MFCC_13: Mel-frequency cepstral coefficients
+      - Capture timbre and vocal quality
+      - MFCC_1 correlates with interview_score (r = -0.185)
+
+3.2 Facial Features (27 features)
+
+   Source: Interview video frames
+   Tools: MediaPipe, OpenFace
+
+   How Extracted:
+      1. Detect face in each frame
+      2. Track facial landmarks (468 points)
+      3. Calculate Action Unit (AU) intensities
+      4. Classify emotions using pre-trained model
+
+   Feature Details:
+      - face_detected_ratio: % of frames with detected face
+      - gaze_ratio_mean: Average gaze direction
+      - gaze_deviation_mean: How far gaze deviates from center
+      - gaze_stability_std: Gaze stability (lower = more stable)
+      - smile_score_mean/std: Smile intensity over time
+      - frown_score_mean/std: Frown intensity over time
+      - eye_openness_mean/std: Eye opening
+      - jaw_open_mean/std: Jaw opening
+      - brow_raise_mean/std: Eyebrow raising
+      - mouth_frown_mean/std: Mouth frowning
+
+   Emotion Features (7):
+      - emotion_happy_mean: Probability of happy expression
+      - emotion_sad_mean: Probability of sad expression
+      - emotion_angry_mean: Probability of angry expression
+      - emotion_surprise_mean: Probability of surprise
+      - emotion_fear_mean: Probability of fear
+      - emotion_disgust_mean: Probability of disgust
+      - emotion_neutral_mean: Probability of neutral expression
+
+3.3 Posture Features (14 features)
+
+   Source: Interview video frames
+   Tools: MediaPipe Pose, OpenPose
+
+   How Extracted:
+      1. Detect body pose landmarks (33 points)
+      2. Track shoulder, hand, head positions
+      3. Calculate movement speeds and patterns
+      4. Compute composite scores
+
+   Feature Details:
+      - head_centering_score_mean: How centered the head is
+      - absolute_shoulder_slope_mean: Shoulder tilt angle
+      - shoulder_slope_var: Shoulder tilt variability
+      - shoulder_width_mean: Shoulder width over time
+      - shoulder_width_var: Shoulder width variability
+      - nose_shoulder_dist_mean: Nose-shoulder distance
+      - nose_shoulder_dist_var: Nose-shoulder variability
+      - hand_speed_mean: Hand movement speed
+      - hand_to_face_touches: Number of face touches
+      - crossed_arms_score: Arms crossing frequency
+      - core_speed_mean: Core body movement speed
+      - posture_shift_count: Number of posture changes
+      - engagement_score: Composite engagement metric
+      - agitation_score: Composite agitation metric
+
+3.4 Text Features (1 feature raw, 200+ engineered)
+
+   Source: Speech-to-text transcription
+   Tools: Whisper, Google Speech-to-Text
+
+   How Extracted:
+      1. Transcribe audio to text
+      2. Apply NLP techniques (TF-IDF, BERT)
+      3. Extract handcrafted features
+
+   See Section 6 for NLP details.
+
+================================================================================
+4. PREPROCESSING PIPELINE
+================================================================================
+
+Step 1: Drop Redundant Features (88 → 72 columns)
+   - Drop 4 near-zero variance features:
+     mouth_frown_mean, shoulder_width_var, nose_shoulder_dist_var, core_speed_mean
+   - Drop 12 highly collinear features (|r| > 0.85):
+     engagement_score, agitation_score, emotion_happy_mean, emotion_fear_mean,
+     emotion_angry_mean, emotion_surprise_mean, Spectral_Rolloff,
+     gaze_deviation_mean, mouth_frown_std, jaw_open_std,
+     Articulation_Rate_WPM, Pitch_Range_Hz
+
+Step 2: Handle Missing Values (+1 column)
+   - transcript: 13 missing (0.65%) → fill with empty string
+   - Add transcript_missing flag column
+
+Step 3: Encode Categorical Features (72 → 73 columns)
+   - duration_label: short=0, medium=1, long=2 (ordinal encoding)
+
+Step 4: Log-Transform Skewed Features
+   - Apply np.log1p to right-skewed features:
+     Avg_Pause_Duration_Sec, Mean_Energy, Filler_Word_Count,
+     Mean_Pitch_Hz, Std_Pitch_Hz, Filler_Rate_Per_Min,
+     hand_speed_mean, posture_shift_count
+
+Step 5: NLP Features (65 → 273 columns)
+   - TF-IDF: 200 features
+   - Handcrafted: 8 features
+   - Total: 208 new NLP features
+   - MUST come before PCA (converts text → numbers)
+
+Step 6: PCA on MFCC (273 → 265 columns)
+   - 13 MFCC coefficients → 5-7 PCA components (retain 95% variance)
+   - Reduces multicollinearity
+   - Can also apply PCA to NLP features if needed
+
+Step 7: Interaction Features (265 → 272 columns)
+   - Speech-Posture: Speech_Rate_WPM × head_centering_score_mean
+   - Pause-Facial: Pause_Count × brow_raise_std
+   - Smile-Speech: smile_score_mean × Speech_Rate_WPM
+   - Fluency: Speech_Rate_WPM / (Pause_Count + 1)
+
+Step 8: Candidate-Level Aggregation (272 → 544 columns)
+   - Group by user_no
+   - Aggregate features: mean, std
+   - Aggregate targets: mean only
+   - Result: 272 features × 2 = 544 candidate-level features
+
+Step 9: Define Features and Targets
+   - Separate features (X) and targets (y)
+   - Exclude metadata: id, file_name, user_no, question_id, question, transcript
+   - 12 target variables
+
+Step 10: Cross-Validation with Scaling
+   - GroupKFold(n_splits=5, groups=user_no)
+   - RobustScaler inside CV loop for linear models
+   - No scaling for tree models
+
+================================================================================
+5. FEATURE ENGINEERING PIPELINE
+================================================================================
+
+5.1 Why Feature Engineering?
+   - Raw features may not capture complex patterns
+   - Interactions reveal cross-modal relationships
+   - Aggregation captures candidate-level patterns
+   - Reduces noise from individual responses
+
+5.2 Interaction Features
+
+   Audio-Posture:
+      speech_engagement = Speech_Rate_WPM × head_centering_score_mean
+      pause_confidence = Pause_Count × brow_raise_std
+
+   Facial-Audio:
+      smile_speech = smile_score_mean × Speech_Rate_WPM
+      gaze_pitch = gaze_stability_std × Mean_Pitch_Hz
+
+   Fluency:
+      fluency_score = Speech_Rate_WPM / (Pause_Count + 1)
+      silence_words = Silence_Ratio × Total_Words
+      energy_variability = Mean_Energy / (Std_Energy + 0.001)
+      filler_impact = Filler_Rate_Per_Min × Speech_Rate_WPM
+
+5.3 Candidate-Level Aggregation
+
+   Why Aggregate:
+      - Each candidate has ~6 responses
+      - Models may overfit to individual response noise
+      - Aggregation captures candidate-level patterns
+
+   How to Aggregate:
+      - Mean: Central tendency of each feature
+      - Std: Variability within candidate
+      - Min/Max: Range of responses (optional)
+
+   Code:
+      df_agg = df.groupby('user_no')[feature_cols].agg(['mean', 'std'])
+      df_agg.columns = ['_'.join(col) for col in df_agg.columns]
+
+5.4 Dimensionality Reduction
+
+   PCA for MFCC:
+      - 13 MFCCs → 5-7 components
+      - Retains 95% variance
+      - Eliminates multicollinearity
+
+   PCA for All Features (optional):
+      - Use if too many features (> 200)
+      - Retain 95-99% variance
+      - Reduces overfitting risk
+
+================================================================================
+6. NLP TECHNIQUES
+================================================================================
+
+6.1 Why NLP?
+   - Transcripts contain WHAT candidates said
+   - Raw text cannot be used in ML models
+   - NLP converts text → numerical features
+
+6.2 Techniques Comparison
+
+   | Technique    | Dimensions | Speed   | Interpretable | Best For           |
+   |--------------|------------|---------|---------------|--------------------|
+   | TF-IDF       | 200-500    | Fast    | Yes           | Baseline           |
+   | BERT         | 384-768    | Slow    | No            | Best accuracy      |
+   | SBERT        | 384        | Medium  | No            | Speed/accuracy     |
+   | Handcrafted  | 5-10       | Fast    | Yes           | Simple features    |
+   | Hybrid       | 200-500    | Medium  | Partial       | Best overall       |
+
+6.3 Recommended: TF-IDF + Handcrafted
+
+   Why:
+      - Interpretable: "which words predict performance"
+      - Fast: Works without GPU
+      - Good accuracy for small dataset (2,011 samples)
+      - Can upgrade to BERT later
+
+   TF-IDF Code:
+      from sklearn.feature_extraction.text import TfidfVectorizer
+
+      tfidf = TfidfVectorizer(
+          max_features=200,
+          stop_words='english',
+          min_df=5,
+          max_df=0.95,
+          ngram_range=(1, 2)
+      )
+      X_tfidf = tfidf.fit_transform(df['transcript']).toarray()
+
+   Handcrafted Features:
+      - word_count: Total words
+      - char_count: Total characters
+      - avg_word_length: Average word length
+      - sentence_count: Number of sentences
+      - unique_word_ratio: Vocabulary richness
+      - filler_count: Filler words (um, uh, like)
+      - filler_rate: Fillers per word
+      - question_count: Questions asked
+
+6.4 When to Use BERT
+
+   Use BERT When:
+      - Dataset > 5,000 samples
+      - GPU available
+      - Maximum accuracy needed
+      - Semantic understanding critical
+
+   Use TF-IDF When:
+      - Dataset < 5,000 samples
+      - No GPU
+      - Interpretability matters
+      - Quick baseline needed
+
+================================================================================
+7. MODELLING APPROACHES
+================================================================================
+
+7.1 Problem Type
+   - Regression (predicting continuous scores)
+   - NOT classification (no accuracy metric)
+   - 12 separate targets (multi-output regression)
+
+7.2 Model Options
+
+   Baseline Models:
+      - Ridge Regression: L2 regularization, good baseline
+      - Lasso Regression: L1 regularization, feature selection
+      - ElasticNet: Combines L1 + L2
+
+   Tree Models:
+      - Random Forest: Ensemble of decision trees
+      - XGBoost: Gradient boosting, usually best performance
+      - LightGBM: Fast gradient boosting
+
+   Advanced Models:
+      - Multi-task learning: Shared backbone, 12 prediction heads
+      - Neural networks: MLP, LSTM, Transformer
+
+7.3 Model Comparison
+
+   | Model           | Pros                    | Cons                    |
+   |-----------------|-------------------------|-------------------------|
+   | Ridge           | Fast, interpretable     | Linear only             |
+   | Lasso           | Feature selection       | May drop useful features|
+   | Random Forest   | Robust, no scaling      | Slow, less interpretable|
+   | XGBoost         | Best accuracy           | Needs tuning            |
+   | LightGBM        | Fast, good accuracy     | Needs tuning            |
+   | Neural Network  | Complex patterns        | Needs lots of data      |
+
+7.4 Recommended Models
+
+   1. XGBoost (Primary)
+      - Usually best performance
+      - Handles mixed feature types
+      - Built-in feature importance
+
+   2. Random Forest (Baseline)
+      - Robust, less tuning needed
+      - Good for comparison
+
+   3. Ridge (Linear Baseline)
+      - Simple, interpretable
+      - Shows linear relationships
+
+7.5 Hyperparameter Tuning
+
+   XGBoost:
+      n_estimators: 500
+      learning_rate: 0.05
+      max_depth: 6
+      min_child_weight: 3
+      subsample: 0.8
+      colsample_bytree: 0.8
+      reg_alpha: 0.1
+      reg_lambda: 1.0
+
+   Random Forest:
+      n_estimators: 500
+      max_depth: 10
+      min_samples_split: 5
+      min_samples_leaf: 2
+
+   Ridge:
+      alpha: 1.0
+
+7.6 Multi-Target Strategy
+
+   Option A: Separate Models
+      - Train 12 separate models (one per target)
+      - Pros: Each model optimized for its target
+      - Cons: More training time, no shared information
+
+   Option B: Multi-Output Regressor
+      - Single model predicts all 12 targets
+      - Pros: Shares information across targets
+      - Cons: May not optimize individual targets
+
+   Option C: Composite Target
+      - Create overall_performance as single target
+      - Pros: Simple, single model
+      - Cons: Loses target-specific information
+
+   Recommendation: Option A (separate models) for simplicity
+
+================================================================================
+8. EVALUATION METRICS
+================================================================================
+
+8.1 Primary Metrics
+
+   RMSE (Root Mean Squared Error):
+      - Measures average prediction error
+      - Penalizes large errors more
+      - Same unit as target variable
+      - Lower is better
+
+   MAE (Mean Absolute Error):
+      - Measures average absolute error
+      - More robust to outliers than RMSE
+      - Same unit as target variable
+      - Lower is better
+
+   R² Score (Coefficient of Determination):
+      - Proportion of variance explained
+      - 1.0 = perfect prediction
+      - 0.0 = predicts mean only
+      - Higher is better
+
+8.2 Secondary Metrics
+
+   MAPE (Mean Absolute Percentage Error):
+      - Percentage error (interpretable)
+      - MAPE = mean(|actual - predicted| / |actual|) × 100
+
+   Correlation:
+      - Pearson correlation between predicted and actual
+      - Higher is better
+
+8.3 Evaluation Code
+
+   from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
+   import numpy as np
+
+   def evaluate_model(y_true, y_pred):
+       rmse = np.sqrt(mean_squared_error(y_true, y_pred))
+       mae = mean_absolute_error(y_true, y_pred)
+       r2 = r2_score(y_true, y_pred)
+       corr = np.corrcoef(y_true, y_pred)[0, 1]
+
+       print(f"RMSE: {rmse:.4f}")
+       print(f"MAE:  {mae:.4f}")
+       print(f"R²:   {r2:.4f}")
+       print(f"Corr: {corr:.4f}")
+
+       return {'rmse': rmse, 'mae': mae, 'r2': r2, 'corr': corr}
+
+8.4 Expected Performance
+
+   Based on similar projects:
+      - RMSE: 0.7 - 0.9 (on z-normalized targets)
+      - MAE: 0.5 - 0.7
+      - R²: 0.4 - 0.6
+      - Corr: 0.6 - 0.8
+
+   If R² < 0.3: Model is weak, needs improvement
+   If R² > 0.7: Model is strong, may be overfitting
+
+================================================================================
+9. CROSS-VALIDATION STRATEGY
+================================================================================
+
+9.1 Why GroupKFold?
+   - Each candidate has ~6 responses
+   - Random split puts same candidate in train AND test
+   - This leaks information (data leakage)
+   - GroupKFold ensures no candidate in both sets
+
+9.2 Implementation
+
+   from sklearn.model_selection import GroupKFold
+
+   gkf = GroupKFold(n_splits=5)
+
+   for fold, (train_idx, test_idx) in enumerate(gkf.split(X, y, groups=df['user_no'])):
+       X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+       y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+       # Train model
+       model.fit(X_train, y_train)
+
+       # Predict
+       y_pred = model.predict(X_test)
+
+       # Evaluate
+       rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+       print(f"Fold {fold}: RMSE = {rmse:.4f}")
+
+9.3 Alternative: Leave-One-Group-Out
+
+   from sklearn.model_selection import LeaveOneGroupOut
+
+   logo = LeaveOneGroupOut()
+   # Each fold leaves out one candidate
+   # More exhaustive but slower
+
+9.4 Evaluation Protocol
+
+   1. Split data into 5 folds by user_no
+   2. For each fold:
+      a. Train on 4 folds
+      b. Validate on 1 fold
+      c. Record metrics
+   3. Report mean ± std of metrics across folds
+   4. Final model: Train on ALL data for deployment
+
+================================================================================
+10. COMPLETE PIPELINE CODE
+================================================================================
+
+   import pandas as pd
+   import numpy as np
+   from sklearn.decomposition import PCA
+   from sklearn.preprocessing import RobustScaler, OrdinalEncoder
+   from sklearn.model_selection import GroupKFold
+   from sklearn.feature_extraction.text import TfidfVectorizer
+   from sklearn.linear_model import Ridge
+   from sklearn.ensemble import RandomForestRegressor
+   from xgboost import XGBRegressor
+   from sklearn.metrics import mean_squared_error, r2_score
+
+
+   # ================================================================
+   # STEP 1: LOAD DATA
+   # ================================================================
+   df = pd.read_csv('data/features/merged_features.csv')
+   print(f"Loaded: {df.shape}")
+
+
+   # ================================================================
+   # STEP 2: DROP REDUNDANT FEATURES
+   # ================================================================
+   drop_features = [
+       # Low variance (4)
+       'mouth_frown_mean', 'shoulder_width_var',
+       'nose_shoulder_dist_var', 'core_speed_mean',
+       # Highly collinear (12)
+       'engagement_score', 'agitation_score', 'emotion_happy_mean',
+       'emotion_fear_mean', 'emotion_angry_mean', 'emotion_surprise_mean',
+       'Spectral_Rolloff', 'gaze_deviation_mean', 'mouth_frown_std',
+       'jaw_open_std', 'Articulation_Rate_WPM', 'Pitch_Range_Hz'
+   ]
+   df = df.drop(columns=[c for c in drop_features if c in df.columns])
+   print(f"After dropping: {df.shape}")
+
+
+   # ================================================================
+   # STEP 3: HANDLE MISSING VALUES
+   # ================================================================
+   df['transcript_missing'] = df['transcript'].isnull().astype(int)
+   df['transcript'] = df['transcript'].fillna('')
+
+
+   # ================================================================
+   # STEP 4: ENCODE CATEGORICALS
+   # ================================================================
+   duration_map = {'short': 0, 'medium': 1, 'long': 2}
+   df['duration_encoded'] = df['duration_label'].map(duration_map)
+   df = df.drop(columns=['duration_label'])
+
+
+   # ================================================================
+   # STEP 4: LOG-TRANSFORM SKEWED FEATURES
+   # ================================================================
+   skewed_cols = [
+       'Avg_Pause_Duration_Sec', 'Mean_Energy', 'Filler_Word_Count',
+       'Mean_Pitch_Hz', 'Std_Pitch_Hz', 'Filler_Rate_Per_Min',
+       'hand_speed_mean', 'posture_shift_count'
+   ]
+   for col in skewed_cols:
+       if col in df.columns:
+           df[col] = np.log1p(df[col])
+
+
+   # ================================================================
+   # STEP 5: NLP FEATURES (TF-IDF + Handcrafted)
+   # ================================================================
+   # Handcrafted
+   df['word_count'] = df['transcript'].str.split().str.len()
+   df['char_count'] = df['transcript'].str.len()
+   df['avg_word_length'] = df['transcript'].apply(
+       lambda x: np.mean([len(w) for w in str(x).split()]) if len(str(x).split()) > 0 else 0
+   )
+   df['sentence_count'] = df['transcript'].str.count(r'[.!?]+')
+   df['unique_word_ratio'] = df['transcript'].apply(
+       lambda x: len(set(str(x).split())) / (len(str(x).split()) + 1)
+   )
+   fillers = ['um', 'uh', 'like', 'you know', 'basically', 'actually']
+   df['filler_count'] = df['transcript'].apply(
+       lambda x: sum(str(x).lower().count(f) for f in fillers)
+   )
+   df['filler_rate'] = df['filler_count'] / (df['word_count'] + 1)
+   df['question_count'] = df['transcript'].str.count(r'\?')
+
+   # TF-IDF
+   tfidf = TfidfVectorizer(max_features=200, stop_words='english', min_df=5, max_df=0.95)
+   tfidf_matrix = tfidf.fit_transform(df['transcript'])
+   tfidf_df = pd.DataFrame(
+       tfidf_matrix.toarray(),
+       columns=[f"tfidf_{w}" for w in tfidf.get_feature_names_out()]
+   )
+   df = pd.concat([df.reset_index(drop=True), tfidf_df.reset_index(drop=True)], axis=1)
+   print(f"After NLP: {df.shape}")
+
+
+   # ================================================================
+   # STEP 6: PCA ON MFCC
+   # ================================================================
+   mfcc_cols = [f"MFCC_{i}" for i in range(1, 14)]
+   if all(c in df.columns for c in mfcc_cols):
+       pca = PCA(n_components=0.95)
+       mfcc_pca = pca.fit_transform(df[mfcc_cols])
+       n_components = mfcc_pca.shape[1]
+       mfcc_df = pd.DataFrame(
+           mfcc_pca,
+           columns=[f"MFCC_PC{i+1}" for i in range(n_components)]
+       )
+       df = df.drop(columns=mfcc_cols).reset_index(drop=True)
+       df = pd.concat([df, mfcc_df], axis=1)
+   print(f"After PCA: {df.shape}")
+
+
+   # ================================================================
+   # STEP 7: INTERACTION FEATURES
+   # ================================================================
+   if 'Speech_Rate_WPM' in df.columns and 'head_centering_score_mean' in df.columns:
+       df['speech_engagement'] = df['Speech_Rate_WPM'] * df['head_centering_score_mean']
+   if 'Pause_Count' in df.columns and 'brow_raise_std' in df.columns:
+       df['pause_confidence'] = df['Pause_Count'] * df['brow_raise_std']
+   if 'smile_score_mean' in df.columns and 'Speech_Rate_WPM' in df.columns:
+       df['smile_speech'] = df['smile_score_mean'] * df['Speech_Rate_WPM']
+   if 'Speech_Rate_WPM' in df.columns and 'Pause_Count' in df.columns:
+       df['fluency_score'] = df['Speech_Rate_WPM'] / (df['Pause_Count'] + 1)
+   if 'Silence_Ratio' in df.columns and 'Total_Words' in df.columns:
+       df['silence_words'] = df['Silence_Ratio'] * df['Total_Words']
+   if 'Mean_Energy' in df.columns and 'Std_Energy' in df.columns:
+       df['energy_variability'] = df['Mean_Energy'] / (df['Std_Energy'] + 0.001)
+   if 'Filler_Rate_Per_Min' in df.columns and 'Speech_Rate_WPM' in df.columns:
+       df['filler_impact'] = df['Filler_Rate_Per_Min'] * df['Speech_Rate_WPM']
+   print(f"After interactions: {df.shape}")
+
+
+   # ================================================================
+   # STEP 8: CANDIDATE-LEVEL AGGREGATION
+   # ================================================================
+   # Aggregate features per candidate (mean, std)
+   exclude_cols = ['id', 'file_name', 'user_no', 'question_id', 'question', 'transcript']
+   target_cols = [
+       'openness', 'conscientiousness', 'extraversion', 'agreeableness',
+       'neuroticism', 'overall_personality', 'interview_score', 'answer_score',
+       'speaking_skills', 'confidence_score', 'facial_expression', 'overall_performance'
+   ]
+   feature_cols = [c for c in df.columns if c not in target_cols + exclude_cols]
+
+   agg_funcs = ['mean', 'std']
+   df_agg = df.groupby('user_no')[feature_cols].agg(agg_funcs)
+   df_agg.columns = ['_'.join(col) for col in df_agg.columns]
+
+   # Aggregate targets (take mean per candidate)
+   target_agg = df.groupby('user_no')[target_cols].mean()
+
+   # Merge
+   df_candidate = pd.concat([df_agg, target_agg], axis=1).reset_index()
+   print(f"After aggregation: {df_candidate.shape}")
+
+
+   # ================================================================
+   # STEP 9: DEFINE FEATURES AND TARGETS
+   # ================================================================
+   X = df_candidate[feature_cols]
+   y = df_candidate[target_cols]
+
+
+   # ================================================================
+   # STEP 10: CROSS-VALIDATION
+   # ================================================================
+   gkf = GroupKFold(n_splits=5)
+
+   models = {
+       'Ridge': Ridge(alpha=1.0),
+       'RandomForest': RandomForestRegressor(n_estimators=500, max_depth=10, random_state=42),
+       'XGBoost': XGBRegressor(n_estimators=500, learning_rate=0.05, max_depth=6, random_state=42)
+   }
+
+   results = {}
+
+   for model_name, model in models.items():
+       print(f"\n{'='*50}")
+       print(f"Model: {model_name}")
+       print(f"{'='*50}")
+
+       fold_scores = []
+
+       for fold, (train_idx, test_idx) in enumerate(gkf.split(X, y, groups=df['user_no'])):
+           X_train, X_test = X.iloc[train_idx], X.iloc[test_idx]
+           y_train, y_test = y.iloc[train_idx], y.iloc[test_idx]
+
+           # Scale for linear models
+           if model_name in ['Ridge']:
+               scaler = RobustScaler()
+               X_train = scaler.fit_transform(X_train)
+               X_test = scaler.transform(X_test)
+
+           # Train
+           model.fit(X_train, y_train)
+
+           # Predict
+           y_pred = model.predict(X_test)
+
+           # Evaluate
+           rmse = np.sqrt(mean_squared_error(y_test, y_pred))
+           r2 = r2_score(y_test, y_pred)
+           fold_scores.append({'rmse': rmse, 'r2': r2})
+
+           print(f"  Fold {fold}: RMSE={rmse:.4f}, R²={r2:.4f}")
+
+       # Average scores
+       avg_rmse = np.mean([s['rmse'] for s in fold_scores])
+       avg_r2 = np.mean([s['r2'] for s in fold_scores])
+       results[model_name] = {'rmse': avg_rmse, 'r2': avg_r2}
+
+       print(f"\n  Average: RMSE={avg_rmse:.4f}, R²={avg_r2:.4f}")
+
+
+   # ================================================================
+   # STEP 11: RESULTS
+   # ================================================================
+   print(f"\n{'='*50}")
+   print("FINAL RESULTS")
+   print(f"{'='*50}")
+   for model_name, scores in results.items():
+       print(f"{model_name:15} RMSE={scores['rmse']:.4f}  R²={scores['r2']:.4f}")
+
+================================================================================
+11. COMMON MISTAKES TO AVOID
+================================================================================
+
+1. Data Leakage:
+   - Using test data in training
+   - Fitting TF-IDF/scaler on all data before split
+   - Solution: Always split FIRST, then fit
+
+2. Candidate Leakage:
+   - Random train/test split
+   - Same candidate in both sets
+   - Solution: Use GroupKFold by user_no
+
+3. Wrong Metrics:
+   - Using accuracy for regression
+   - Using RMSE for classification
+   - Solution: Use RMSE, MAE, R² for regression
+
+4. Not Scaling Linear Models:
+   - Ridge/Lasso need scaled features
+   - Tree models don't need scaling
+   - Solution: Scale conditionally
+
+5. Too Many Features:
+   - 500+ features with 2,011 samples
+   - Overfitting risk
+   - Solution: Use PCA, feature selection
+
+6. Ignoring Missing Values:
+   - NaN in transcript causes errors
+   - Solution: Impute or handle explicitly
+
+7. Not Handling Skewness:
+   - Skewed features hurt linear models
+   - Solution: Apply log1p transformation
+
+8. Overfitting:
+   - Complex model memorizes training data
+   - Solution: Cross-validation, regularization
+
+================================================================================
+12. REFERENCES
+================================================================================
+
+Papers:
+   - BERT: Devlin et al. (2018) "BERT: Pre-training of Deep Bidirectional Transformers"
+   - XGBoost: Chen & Guestrin (2016) "XGBoost: A Scalable Tree Boosting System"
+   - MFCC: Davis & Mermelstein (1980) "Comparison of Parametric Representations"
+
+Tools:
+   - librosa: Audio feature extraction
+   - MediaPipe: Facial and pose detection
+   - scikit-learn: ML models and preprocessing
+   - XGBoost: Gradient boosting
+   - Sentence-BERT: Text embeddings
+
+================================================================================
+END OF COMPLETE PROJECT GUIDE
+================================================================================

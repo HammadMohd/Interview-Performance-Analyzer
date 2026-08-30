@@ -1,0 +1,503 @@
+================================================================================
+NLP TECHNIQUES FOR INTERVIEW PERFORMANCE ANALYSIS
+Dataset: Interview transcripts from 2,011 video interviews
+Date: 2026-08-26
+================================================================================
+
+TABLE OF CONTENTS
+-----------------
+1. Why We Need NLP
+2. What Are Our Options
+3. Technique Comparison
+4. When to Use Each Technique
+5. How to Implement Each Technique
+6. Best Technique for This Project
+7. Complete NLP Pipeline Code
+8. Feature Count Impact
+9. Common Mistakes to Avoid
+10. Summary
+
+================================================================================
+1. WHY WE NEED NLP
+================================================================================
+
+Problem:
+   - We have 2,011 interview transcripts (raw text)
+   - Machine learning models need numerical input
+   - Raw text cannot be used directly in models like XGBoost or Random Forest
+
+Solution:
+   - Convert text → numerical features using NLP techniques
+   - These features capture WHAT the candidate said and HOW they said it
+
+What NLP Captures:
+   - Word frequency (TF-IDF)
+   - Semantic meaning (BERT)
+   - Language complexity
+   - Filler words (um, uh, like)
+   - Sentence structure
+   - Vocabulary richness
+
+Why It Matters:
+   - Transcript word count correlates with performance (r = -0.37)
+   - Candidates who speak concisely score higher
+   - NLP can capture semantic quality beyond just word count
+
+================================================================================
+2. WHAT ARE OUR OPTIONS
+================================================================================
+
+Option A: Bag of Words (BoW)
+   - Count word frequencies
+   - Simple, fast, interpretable
+   - Loses word order and context
+
+Option B: TF-IDF (Term Frequency-Inverse Document Frequency)
+   - Weight words by importance
+   - Downweights common words
+   - Good baseline, interpretable
+
+Option C: Word2Vec / GloVe
+   - Dense word embeddings (300 dimensions)
+   - Captures word relationships
+   - Averages word vectors for document
+
+Option D: BERT (Bidirectional Encoder Representations from Transformers)
+   - Contextual embeddings (768 dimensions)
+   - Understands word meaning in context
+   - State-of-the-art performance
+   - Slower, less interpretable
+
+Option E: Sentence-BERT (SBERT)
+   - Optimized for sentence similarity
+   - Faster than BERT
+   - 384 dimensions
+   - Good for document-level tasks
+
+Option F: Handcrafted Features
+   - Word count, sentence count, unique word ratio
+   - Filler word count, average word length
+   - Simple, interpretable, fast
+
+================================================================================
+3. TECHNIQUE COMPARISON
+================================================================================
+
+| Technique        | Dimensions | Speed   | Interpretable | Semantic | Best For              |
+|------------------|------------|---------|---------------|----------|-----------------------|
+| Bag of Words     | 1000+      | Fast    | Yes           | No       | Quick baseline        |
+| TF-IDF           | 200-500    | Fast    | Yes           | No       | Baseline + interpretable |
+| Word2Vec         | 300        | Medium  | No            | Yes      | Semantic similarity   |
+| BERT             | 768        | Slow    | No            | Yes      | Best accuracy         |
+| Sentence-BERT    | 384        | Medium  | No            | Yes      | Balance of speed/accuracy |
+| Handcrafted      | 5-10       | Fast    | Yes           | No       | Simple features       |
+| Hybrid           | 200-500    | Medium  | Partial       | Yes      | Best overall          |
+
+================================================================================
+4. WHEN TO USE EACH TECHNIQUE
+================================================================================
+
+Use TF-IDF When:
+   - You need quick results
+   - Interpretability matters (show which words predict performance)
+   - Dataset is small (< 10,000 samples)
+   - You want a baseline to compare against
+
+Use BERT When:
+   - Accuracy is the priority
+   - You have GPU resources
+   - Dataset is medium-sized (1,000 - 100,000 samples)
+   - Semantic understanding matters (it does for interviews)
+
+Use Sentence-BERT When:
+   - You want BERT-quality but faster
+   - You have limited GPU memory
+   - You need sentence-level embeddings
+
+Use Word2Vec When:
+   - You want semantic features without BERT overhead
+   - You have pre-trained embeddings available
+
+Use Handcrafted When:
+   - You need simple, explainable features
+   - You want to combine with other NLP techniques
+   - Quick prototyping
+
+Use Hybrid When:
+   - You want the best of both worlds
+   - You need both interpretability and accuracy
+   - Production deployment
+
+================================================================================
+5. HOW TO IMPLEMENT EACH TECHNIQUE
+================================================================================
+
+--- Option A: Bag of Words ---
+
+   from sklearn.feature_extraction.text import CountVectorizer
+
+   bow = CountVectorizer(max_features=500, stop_words='english')
+   X_bow = bow.fit_transform(df['transcript']).toarray()
+   # Creates 500 columns: word1_count, word2_count, ...
+
+--- Option B: TF-IDF ---
+
+   from sklearn.feature_extraction.text import TfidfVectorizer
+
+   tfidf = TfidfVectorizer(
+       max_features=200,      # Top 200 words
+       stop_words='english',  # Remove 'the', 'is', 'and'
+       min_df=5,              # Word must appear in >= 5 documents
+       max_df=0.95,           # Word must appear in <= 95% of documents
+       ngram_range=(1, 2)     # Unigrams and bigrams
+   )
+   X_tfidf = tfidf.fit_transform(df['transcript']).toarray()
+   # Creates 200 columns: word1_tfidf, word2_tfidf, ...
+
+   Why these parameters:
+   - max_features=200: Balance between information and dimensionality
+   - min_df=5: Ignore rare words (noise)
+   - max_df=0.95: Ignore overly common words
+   - ngram_range=(1,2): Capture "not good" as a phrase, not "not" + "good"
+
+--- Option C: Word2Vec ---
+
+   from gensim.models import Word2Vec
+   import numpy as np
+
+   # Tokenize sentences
+   sentences = [text.split() for text in df['transcript'].fillna('')]
+
+   # Train Word2Vec
+   w2v = Word2Vec(sentences, vector_size=300, window=5, min_count=2, workers=4)
+
+   # Average word vectors for each document
+   def get_w2v_vector(text):
+       words = text.split()
+       word_vecs = [w2v.wv[w] for w in words if w in w2v.wv]
+       if len(word_vecs) == 0:
+           return np.zeros(300)
+       return np.mean(word_vecs, axis=0)
+
+   X_w2v = np.array([get_w2v_vector(t) for t in df['transcript'].fillna('')])
+   # Creates 300 columns: w2v_0, w2v_1, ..., w2v_299
+
+--- Option D: BERT ---
+
+   from sentence_transformers import SentenceTransformer
+
+   # Load pre-trained model
+   model = SentenceTransformer('all-MiniLM-L6-v2')
+
+   # Encode transcripts (batch processing for speed)
+   embeddings = model.encode(
+       df['transcript'].fillna('').tolist(),
+       show_progress_bar=True,
+       batch_size=32
+   )
+
+   # Create dataframe
+   bert_df = pd.DataFrame(
+       embeddings,
+       columns=[f'bert_{i}' for i in range(384)]
+   )
+   # Creates 384 columns: bert_0, bert_1, ..., bert_383
+
+   Why all-MiniLM-L6-v2:
+   - Fast (6 layers vs 12 in full BERT)
+   - Good quality (trained on 1B+ sentences)
+   - 384 dimensions (vs 768 in full BERT)
+   - Free to use
+
+--- Option E: Sentence-BERT ---
+
+   # Same as BERT above - SentenceTransformer IS Sentence-BERT
+   from sentence_transformers import SentenceTransformer
+   model = SentenceTransformer('all-MiniLM-L6-v2')
+   # This IS Sentence-BERT, not regular BERT
+
+--- Option F: Handcrafted Features ---
+
+   import numpy as np
+
+   def extract_text_features(df):
+       features = pd.DataFrame()
+
+       # Word count
+       features['word_count'] = df['transcript'].str.split().str.len()
+
+       # Character count
+       features['char_count'] = df['transcript'].str.len()
+
+       # Average word length
+       features['avg_word_length'] = df['transcript'].apply(
+           lambda x: np.mean([len(w) for w in str(x).split()]) if len(str(x).split()) > 0 else 0
+       )
+
+       # Sentence count
+       features['sentence_count'] = df['transcript'].str.count(r'[.!?]+')
+
+       # Unique word ratio (vocabulary richness)
+       features['unique_word_ratio'] = df['transcript'].apply(
+           lambda x: len(set(str(x).split())) / (len(str(x).split()) + 1)
+       )
+
+       # Filler word count
+       fillers = ['um', 'uh', 'like', 'you know', 'basically', 'actually']
+       features['filler_count'] = df['transcript'].apply(
+           lambda x: sum(str(x).lower().count(f) for f in fillers)
+       )
+
+       # Question mark count (how many questions asked)
+       features['question_count'] = df['transcript'].str.count(r'\?')
+
+       return features
+
+   X_handcrafted = extract_text_features(df)
+   # Creates 7 columns
+
+--- Option G: Hybrid (RECOMMENDED) ---
+
+   # Combine TF-IDF + Handcrafted + BERT
+   from sklearn.feature_extraction.text import TfidfVectorizer
+   from sentence_transformers import SentenceTransformer
+   import numpy as np
+
+   # 1. TF-IDF (interpretability)
+   tfidf = TfidfVectorizer(max_features=200, stop_words='english', min_df=5)
+   X_tfidf = tfidf.fit_transform(df['transcript'].fillna('')).toarray()
+   tfidf_df = pd.DataFrame(X_tfidf, columns=[f'tfidf_{w}' for w in tfidf.get_feature_names_out()])
+
+   # 2. Handcrafted (simple features)
+   handcrafted_df = extract_text_features(df)
+
+   # 3. BERT (semantics)
+   model = SentenceTransformer('all-MiniLM-L6-v2')
+   X_bert = model.encode(df['transcript'].fillna('').tolist(), show_progress_bar=True)
+   bert_df = pd.DataFrame(X_bert, columns=[f'bert_{i}' for i in range(384)])
+
+   # Combine all
+   nlp_features = pd.concat([tfidf_df, handcrafted_df, bert_df], axis=1)
+   # Creates 200 + 7 + 384 = 591 columns
+
+================================================================================
+6. BEST TECHNIQUE FOR THIS PROJECT
+================================================================================
+
+Recommendation: TF-IDF + Handcrafted (Option B + F)
+
+Why NOT BERT:
+   - Dataset is small (2,011 samples) - BERT needs more data to shine
+   - BERT adds 384 dimensions to already 88-column dataset
+   - BERT is slow without GPU
+   - Interpretable features are better for explaining to stakeholders
+   - TF-IDF performs nearly as well on small datasets
+
+Why TF-IDF + Handcrafted:
+   - 207 features (200 TF-IDF + 7 handcrafted)
+   - Interpretable: "which words predict high performance"
+   - Fast to train
+   - Good baseline for comparison
+   - Can upgrade to BERT later if needed
+
+When to Use BERT Instead:
+   - If you get more data (> 5,000 samples)
+   - If accuracy is critical
+   - If you have GPU resources
+   - If semantic understanding is clearly needed
+
+================================================================================
+7. COMPLETE NLP PIPELINE CODE
+================================================================================
+
+   import pandas as pd
+   import numpy as np
+   from sklearn.feature_extraction.text import TfidfVectorizer
+
+
+   def extract_nlp_features(df, method='tfidf_handcrafted', max_tfidf_features=200):
+       """
+       Extract NLP features from interview transcripts.
+
+       Args:
+           df: DataFrame with 'transcript' column
+           method: 'tfidf', 'handcrafted', 'tfidf_handcrafted', or 'bert'
+           max_tfidf_features: Number of TF-IDF features (default: 200)
+
+       Returns:
+           DataFrame with NLP features
+       """
+
+       # Fill missing transcripts
+       transcripts = df['transcript'].fillna('')
+
+       nlp_features = pd.DataFrame(index=df.index)
+
+       # ============================================================
+       # HANDCRAFTED FEATURES (always included)
+       # ============================================================
+       nlp_features['word_count'] = transcripts.str.split().str.len()
+       nlp_features['char_count'] = transcripts.str.len()
+       nlp_features['avg_word_length'] = transcripts.apply(
+           lambda x: np.mean([len(w) for w in str(x).split()]) if len(str(x).split()) > 0 else 0
+       )
+       nlp_features['sentence_count'] = transcripts.str.count(r'[.!?]+')
+       nlp_features['unique_word_ratio'] = transcripts.apply(
+           lambda x: len(set(str(x).split())) / (len(str(x).split()) + 1)
+       )
+
+       # Filler words
+       fillers = ['um', 'uh', 'like', 'you know', 'basically', 'actually']
+       nlp_features['filler_count'] = transcripts.apply(
+           lambda x: sum(str(x).lower().count(f) for f in fillers)
+       )
+       nlp_features['filler_rate'] = nlp_features['filler_count'] / (nlp_features['word_count'] + 1)
+
+       # Question asking
+       nlp_features['question_count'] = transcripts.str.count(r'\?')
+
+       # ============================================================
+       # TF-IDF FEATURES
+       # ============================================================
+       if method in ['tfidf', 'tfidf_handcrafted']:
+           tfidf = TfidfVectorizer(
+               max_features=max_tfidf_features,
+               stop_words='english',
+               min_df=5,
+               max_df=0.95,
+               ngram_range=(1, 2)
+           )
+           X_tfidf = tfidf.fit_transform(transcripts).toarray()
+           tfidf_df = pd.DataFrame(
+               X_tfidf,
+               columns=[f'tfidf_{w}' for w in tfidf.get_feature_names_out()],
+               index=df.index
+           )
+           nlp_features = pd.concat([nlp_features, tfidf_df], axis=1)
+
+       # ============================================================
+       # BERT FEATURES (optional)
+       # ============================================================
+       if method == 'bert':
+           from sentence_transformers import SentenceTransformer
+           model = SentenceTransformer('all-MiniLM-L6-v2')
+           X_bert = model.encode(transcripts.tolist(), show_progress_bar=True)
+           bert_df = pd.DataFrame(
+               X_bert,
+               columns=[f'bert_{i}' for i in range(X_bert.shape[1])],
+               index=df.index
+           )
+           nlp_features = pd.concat([nlp_features, bert_df], axis=1)
+
+       return nlp_features
+
+
+   # ================================================================
+   # USAGE
+   # ================================================================
+
+   # Load data
+   df = pd.read_csv('data/features/merged_features.csv')
+
+   # Extract NLP features (recommended: tfidf_handcrafted)
+   nlp_features = extract_nlp_features(df, method='tfidf_handcrafted')
+
+   print(f"NLP features shape: {nlp_features.shape}")
+   print(f"Feature names: {list(nlp_features.columns[:10])}...")
+
+   # Combine with other features
+   df_final = pd.concat([df, nlp_features], axis=1)
+
+================================================================================
+8. FEATURE COUNT IMPACT
+================================================================================
+
+| Method              | New Features | Total After | Notes                      |
+|---------------------|--------------|-------------|----------------------------|
+| Handcrafted only    | 8            | 96          | Fast, interpretable        |
+| TF-IDF only         | 200          | 288         | Good baseline              |
+| TF-IDF + Handcraft  | 208          | 296         | Recommended                |
+| BERT only           | 384          | 472         | Best accuracy, slow        |
+| BERT + Handcraft    | 392          | 480         | Best if GPU available      |
+| Hybrid (all)        | 592          | 680         | Maximum information        |
+
+================================================================================
+9. COMMON MISTAKES TO AVOID
+================================================================================
+
+Mistake 1: Applying TF-IDF Before Train/Test Split
+   WRONG:
+      tfidf.fit_transform(df['transcript'])  # Uses all data
+      X_train, X_test = train_test_split(df)
+
+   RIGHT:
+      X_train, X_test = train_test_split(df)
+      tfidf.fit_transform(X_train['transcript'])  # Fit on train only
+      tfidf.transform(X_test['transcript'])       # Transform test
+
+   Why: TF-IDF learns vocabulary from data. If you fit on all data,
+        test set information leaks into training.
+
+Mistake 2: Using Too Many TF-IDF Features
+   WRONG:
+      tfidf = TfidfVectorizer(max_features=5000)
+
+   RIGHT:
+      tfidf = TfidfVectorizer(max_features=200)
+
+   Why: 5000 features creates massive dimensionality. Most are noise.
+        200-500 is usually sufficient for document classification.
+
+Mistake 3: Not Handling Missing Transcripts
+   WRONG:
+      X_tfidf = tfidf.transform(df['transcript'])  # Crashes on NaN
+
+   RIGHT:
+      transcripts = df['transcript'].fillna('')
+      X_tfidf = tfidf.transform(transcripts)
+
+Mistake 4: Using BERT Without GPU
+   - BERT on CPU takes ~10x longer than TF-IDF
+   - For 2,011 samples, TF-IDF is faster and nearly as good
+   - Use BERT only if you have GPU and need maximum accuracy
+
+Mistake 5: Not Combining with Handcrafted Features
+   - TF-IDF captures word importance
+   - Handcrafted captures structural patterns
+   - Combining both gives richer features
+
+Mistake 6: Scaling BERT Embeddings
+   - BERT outputs are already normalized (unit vectors)
+   - Do NOT apply StandardScaler or RobustScaler to BERT features
+   - Only scale TF-IDF features if needed
+
+================================================================================
+10. SUMMARY
+================================================================================
+
+For This Project:
+   - Use: TF-IDF + Handcrafted features (Option G)
+   - Why: Interpretable, fast, good accuracy for small dataset
+   - When: Before feature engineering (Step 6 in pipeline)
+   - How: fit_transform on train, transform on test
+
+Key Parameters:
+   - TF-IDF: max_features=200, min_df=5, max_df=0.95, ngram_range=(1,2)
+   - Handcrafted: word_count, char_count, avg_word_length, sentence_count,
+                  unique_word_ratio, filler_count, filler_rate, question_count
+
+Pipeline Position:
+   Step 1: Drop redundant features
+   Step 2: Handle missing values
+   Step 3: Encode categoricals
+   Step 4: Log-transform skewed
+   Step 5: PCA on MFCC
+   Step 6: NLP (TF-IDF + Handcrafted)  ← HERE
+   Step 7: Scale features
+   Step 8: Aggregation
+   Step 9: Interactions
+   Step 10: Train/test split
+
+================================================================================
+END OF NLP GUIDE
+================================================================================
